@@ -8,8 +8,12 @@ import kotlinx.coroutines.launch
 
 fun CredentialViewModel.requestCredentialWithNonce(
     issuerUrl: String = BuildConfig.BASE_URL,
-    credentialType: String = "VerifiableCredential",
-    subjectClaims: Map<String, String> = emptyMap(),
+    credentialType: String = "UniversityDegreeCredential",
+    subjectClaims: Map<String, String> = mapOf(
+        "givenName" to "Juan",
+        "familyName" to "Perez",
+        "email" to "juan@example.com"
+    ),
 ) {
     viewModelScope.launch(Dispatchers.IO) {
         _uiState.update {
