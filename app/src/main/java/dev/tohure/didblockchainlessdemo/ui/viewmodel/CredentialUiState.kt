@@ -1,4 +1,4 @@
-package dev.tohure.didblockchainlessdemo.ui
+package dev.tohure.didblockchainlessdemo.ui.viewmodel
 
 import dev.tohure.didblockchainlessdemo.crypto.SecurityLevel
 
