@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlinx.serialization)
 }
 
 android {
@@ -19,6 +20,9 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // URL base del backend — cambiar aquí para apuntar a staging/producción
+        buildConfigField("String", "BASE_URL", "\"https://my-backend/\"")
     }
 
     buildTypes {
@@ -36,10 +40,15 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
 dependencies {
+    // ── Core ─────────────────────────────────────────────────────────
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.lifecycle.runtime.ktx)
+
     // ── Compose BOM ──────────────────────────────────────────────────
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
@@ -52,9 +61,16 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
 
-    // ── Core ─────────────────────────────────────────────────────────
-    implementation(libs.androidx.core.ktx)
-    implementation(libs.androidx.lifecycle.runtime.ktx)
+    // ── Networking ───────────────────────────────────────────────────
+    implementation(libs.retrofit.core)
+    implementation(libs.retrofit.kotlinx.serialization)
+    implementation(libs.okhttp.core)
+    implementation(libs.okhttp.logging)
+    implementation(libs.kotlinx.serialization.json)
+
+    // ── Security ───────────────────────────────────────────────────
+    implementation(libs.bouncycastle)
+    implementation(libs.androidx.lifecycle.process)
 
     // ── Testing ──────────────────────────────────────────────────────
     testImplementation(libs.junit)

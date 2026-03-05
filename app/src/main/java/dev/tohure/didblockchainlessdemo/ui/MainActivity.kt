@@ -1,6 +1,7 @@
-package dev.tohure.didblockchainlessdemo
+package dev.tohure.didblockchainlessdemo.ui
 
 import android.os.Bundle
+import android.util.Base64
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -27,6 +28,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -62,6 +64,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import dev.tohure.didblockchainlessdemo.R
+import dev.tohure.didblockchainlessdemo.crypto.SecurityLevel
 import dev.tohure.didblockchainlessdemo.ui.theme.DIDBlockchainlessDemoTheme
 
 class MainActivity : ComponentActivity() {
@@ -93,42 +97,145 @@ fun CredentialScreen(vm: CredentialViewModel = viewModel()) {
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-
-            if (state.isLoading) {
+            if (state.isLoading || state.isFetching) {
                 LinearProgressIndicator(
                     modifier = Modifier.fillMaxWidth(),
                     color = MaterialTheme.colorScheme.primary
                 )
             }
 
-            SectionCard(title = "🔑  Android Keystore") {
-                KeyStatusRow(state.keyExists, state.securityLevel)
-
+            // ── Sección 1: Identidad DID (secp256k1) ─────────────────
+            SectionCard(title = "🪪  Identidad DID (secp256k1)") {
+                KeyStatusRow(
+                    exists = state.didKeysExist,
+                    securityLevel = state.didSecurityLevel,
+                    presentLabel = "Par secp256k1 presente",
+                    absentLabel  = "No hay claves DID"
+                )
                 Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ActionButton(
+                        text = "Generar DID",
+                        icon = R.drawable.key,
+                        enabled = !state.isLoading,
+                        modifier = Modifier.weight(1f),
+                        onClick = vm::generateDIDKeys
+                    )
+                    ActionButton(
+                        text = "Eliminar DID",
+                        icon = R.drawable.delete,
+                        enabled = !state.isLoading && state.didKeysExist,
+                        containerColor = MaterialTheme.colorScheme.error.copy(alpha = 0.85f),
+                        modifier = Modifier.weight(1f),
+                        onClick = vm::deleteDIDKeys
+                    )
+                }
 
+                AnimatedVisibility(visible = state.did.isNotBlank()) {
+                    ExpandableMonoBox(
+                        label = "Ver DID",
+                        hiddenLabel = "Ocultar DID",
+                        content = state.did,
+                        topPadding = 12.dp
+                    )
+                }
+                AnimatedVisibility(visible = state.keyId.isNotBlank()) {
+                    ExpandableMonoBox(
+                        label = "Ver key ID (kid)",
+                        hiddenLabel = "Ocultar key ID",
+                        content = state.keyId,
+                        topPadding = 4.dp
+                    )
+                }
+            }
+
+            // ── Sección 2: Proof JWT (nonce → firma) ── ───────────────
+            SectionCard(title = "✍️  Proof JWT (Solicitar credencial)") {
+                Text(
+                    text = "Solicita un nonce al backend, construye el Proof JWT firmado con la clave secp256k1 y muéstralo aquí.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
+                )
+                Spacer(Modifier.height(10.dp))
+                ActionButton(
+                    text = "Solicitar nonce y firmar",
+                    icon = R.drawable.key,
+                    enabled = !state.isLoading && !state.isFetching && state.didKeysExist,
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = { vm.requestCredentialWithNonce() }
+                )
+                AnimatedVisibility(
+                    visible = state.lastProofJwt.isNotBlank(),
+                    enter = fadeIn() + expandVertically(),
+                    exit  = fadeOut() + shrinkVertically()
+                ) {
+                    Column(modifier = Modifier.padding(top = 10.dp)) {
+                        Text(
+                            text = state.lastProofJwt,
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontFamily = FontFamily.Monospace,
+                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.85f)
+                            ),
+                            maxLines = 6,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(
+                                    MaterialTheme.colorScheme.surfaceVariant,
+                                    RoundedCornerShape(8.dp)
+                                )
+                                .padding(10.dp)
+                        )
+                        TextButton(onClick = vm::clearProofJwt) {
+                            Icon(
+                                painter = painterResource(R.drawable.visibility_off),
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Text("Limpiar", fontSize = 13.sp)
+                        }
+                    }
+                }
+            }
+
+            // ── Sección 3: Keystore RSA (cifrado de VCs) ──────────────
+            SectionCard(title = "🔑  Android Keystore (RSA — cifrado VCs)") {
+                KeyStatusRow(
+                    exists = state.rsaKeyExists,
+                    securityLevel = state.rsaSecurityLevel,
+                    presentLabel = "Par RSA-2048 presente en el Keystore",
+                    absentLabel  = "No hay claves RSA generadas"
+                )
+                Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     ActionButton(
                         text = "Generar claves",
                         icon = R.drawable.key,
                         enabled = !state.isLoading,
                         modifier = Modifier.weight(1f),
-                        onClick = vm::generateKeys
+                        onClick = vm::generateRsaKeys
                     )
                     ActionButton(
                         text = "Eliminar claves",
                         icon = R.drawable.delete,
-                        enabled = !state.isLoading && state.keyExists,
+                        enabled = !state.isLoading && state.rsaKeyExists,
                         containerColor = MaterialTheme.colorScheme.error.copy(alpha = 0.85f),
                         modifier = Modifier.weight(1f),
-                        onClick = vm::deleteKeys
+                        onClick = vm::deleteRsaKeys
                     )
                 }
-
                 AnimatedVisibility(visible = state.publicKeyBase64.isNotBlank()) {
-                    PublicKeyBox(state.publicKeyBase64)
+                    ExpandableMonoBox(
+                        label = "Ver clave pública RSA (Base64)",
+                        hiddenLabel = "Ocultar clave pública",
+                        content = state.publicKeyBase64,
+                        topPadding = 12.dp
+                    )
                 }
             }
 
+            // ── Sección 4: Credencial verificable ─────────────────────
             SectionCard(title = "📄  Credencial verificable (JSON)") {
                 OutlinedTextField(
                     value = state.jsonInput,
@@ -138,39 +245,50 @@ fun CredentialScreen(vm: CredentialViewModel = viewModel()) {
                         .heightIn(min = 180.dp),
                     textStyle = LocalTextStyle.current.copy(
                         fontFamily = FontFamily.Monospace,
-                        fontSize = 13.sp
+                        fontSize   = 13.sp
                     ),
-                    label = { Text("JSON de la credencial") },
+                    label  = { Text("JSON de la credencial") },
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        focusedBorderColor   = MaterialTheme.colorScheme.primary,
                         unfocusedBorderColor = MaterialTheme.colorScheme.outline
                     )
                 )
-
                 Spacer(Modifier.height(8.dp))
-
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ActionButton(
+                        text = "Descargar y cifrar",
+                        icon = R.drawable.download,
+                        enabled = !state.isLoading && !state.isFetching && state.rsaKeyExists,
+                        modifier = Modifier.weight(1f),
+                        onClick = {
+                            vm.fetchAndEncrypt(
+                                credentialId = "id-de-la-credencial",
+                                token = "token-del-usuario"
+                            )
+                        }
+                    )
                     ActionButton(
                         text = "Cifrar y guardar",
                         icon = R.drawable.lock,
-                        enabled = !state.isLoading && state.keyExists,
+                        enabled = !state.isLoading && state.rsaKeyExists,
                         modifier = Modifier.weight(1f),
                         onClick = vm::encrypt
                     )
                     ActionButton(
                         text = "Descifrar",
                         icon = R.drawable.lock_open,
-                        enabled = !state.isLoading && state.keyExists,
+                        enabled = !state.isLoading && state.rsaKeyExists,
                         modifier = Modifier.weight(1f),
                         onClick = vm::decrypt
                     )
                 }
             }
 
+            // ── Payload cifrado ───────────────────────────────────────
             AnimatedVisibility(
                 visible = state.encryptedPayload.isNotBlank(),
                 enter = fadeIn() + expandVertically(),
-                exit = fadeOut() + shrinkVertically()
+                exit  = fadeOut() + shrinkVertically()
             ) {
                 SectionCard(title = "🔐  Payload cifrado (Base64)") {
                     Text(
@@ -191,10 +309,7 @@ fun CredentialScreen(vm: CredentialViewModel = viewModel()) {
                     )
                     Text(
                         text = "Bytes: ${
-                            android.util.Base64.decode(
-                                state.encryptedPayload,
-                                android.util.Base64.NO_WRAP
-                            ).size
+                            Base64.decode(state.encryptedPayload, Base64.NO_WRAP).size
                         } B",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
@@ -203,10 +318,11 @@ fun CredentialScreen(vm: CredentialViewModel = viewModel()) {
                 }
             }
 
+            // ── JSON descifrado ───────────────────────────────────────
             AnimatedVisibility(
                 visible = state.decryptedJson.isNotBlank(),
                 enter = fadeIn() + expandVertically(),
-                exit = fadeOut() + shrinkVertically()
+                exit  = fadeOut() + shrinkVertically()
             ) {
                 SectionCard(title = "✅  JSON descifrado") {
                     Text(
@@ -217,15 +333,8 @@ fun CredentialScreen(vm: CredentialViewModel = viewModel()) {
                         ),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(
-                                Color(0xFF1B2E1B),
-                                RoundedCornerShape(8.dp)
-                            )
-                            .border(
-                                1.dp,
-                                Color(0xFF4CAF50).copy(alpha = 0.4f),
-                                RoundedCornerShape(8.dp)
-                            )
+                            .background(Color(0xFF1B2E1B), RoundedCornerShape(8.dp))
+                            .border(1.dp, Color(0xFF4CAF50).copy(alpha = 0.4f), RoundedCornerShape(8.dp))
                             .padding(12.dp)
                     )
                     Spacer(Modifier.height(6.dp))
@@ -241,6 +350,7 @@ fun CredentialScreen(vm: CredentialViewModel = viewModel()) {
                 }
             }
 
+            // ── Barra de estado ───────────────────────────────────────
             AnimatedVisibility(visible = state.statusMessage.isNotBlank()) {
                 StatusBar(state.statusMessage)
             }
@@ -250,26 +360,24 @@ fun CredentialScreen(vm: CredentialViewModel = viewModel()) {
     }
 }
 
+// ── Componentes privados ──────────────────────────────────────────────────────
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun CredentialTopBar() {
     TopAppBar(
         title = {
             Column {
+                Text("DID Demo", fontWeight = FontWeight.Bold, fontSize = 18.sp)
                 Text(
-                    "Secure Credentials",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp
-                )
-                Text(
-                    "Android Keystore · RSA-2048 + AES-256-GCM",
+                    "did:key · secp256k1 · RSA-2048 + AES-256-GCM",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
                 )
             }
         },
         colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = MaterialTheme.colorScheme.surface,
+            containerColor    = MaterialTheme.colorScheme.surface,
             titleContentColor = MaterialTheme.colorScheme.onSurface
         )
     )
@@ -282,18 +390,16 @@ private fun SectionCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        ),
-        shape = RoundedCornerShape(14.dp),
+        colors   = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        shape    = RoundedCornerShape(14.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
-                text = title,
-                style = MaterialTheme.typography.titleSmall,
+                text     = title,
+                style    = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.primary,
+                color    = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(bottom = 12.dp)
             )
             content()
@@ -302,44 +408,54 @@ private fun SectionCard(
 }
 
 @Composable
-private fun KeyStatusRow(exists: Boolean, securityLevel: SecurityLevel) {
+private fun KeyStatusRow(
+    exists: Boolean,
+    securityLevel: SecurityLevel,
+    presentLabel: String = "Claves presentes",
+    absentLabel:  String = "No hay claves generadas",
+) {
     Row(
-        verticalAlignment = Alignment.CenterVertically,
+        verticalAlignment    = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         val color = if (exists) Color(0xFF81C784) else Color(0xFFFF6B6B)
-        Box(
-            modifier = Modifier
-                .size(10.dp)
-                .background(color, shape = androidx.compose.foundation.shape.CircleShape)
-        )
+        Box(modifier = Modifier.size(10.dp).background(color, CircleShape))
         Text(
-            text = if (exists) "Par de claves presente en el Keystore"
-            else "No hay claves generadas",
+            text  = if (exists) presentLabel else absentLabel,
             style = MaterialTheme.typography.bodySmall,
             color = color
         )
-        Text(
-            text = when (securityLevel) {
-                SecurityLevel.STRONGBOX -> "🔒 StrongBox (chip dedicado)"
-                SecurityLevel.TEE -> "🛡 TEE (hardware seguro)"
-                SecurityLevel.SOFTWARE -> "⚠️ Solo software"
-                SecurityLevel.UNKNOWN -> ""
-            },
-            style = MaterialTheme.typography.labelSmall,
-            color = when (securityLevel) {
-                SecurityLevel.STRONGBOX -> Color(0xFF81C784)
-                SecurityLevel.TEE -> Color(0xFF4FC3F7)
-                else -> Color(0xFFFF6B6B)
-            }
-        )
+        if (exists) {
+            Text(
+                text = when (securityLevel) {
+                    SecurityLevel.STRONGBOX -> "🔒 StrongBox"
+                    SecurityLevel.TEE       -> "🛡 TEE"
+                    SecurityLevel.SOFTWARE  -> "⚠️ Software"
+                    SecurityLevel.UNKNOWN   -> ""
+                },
+                style = MaterialTheme.typography.labelSmall,
+                color = when (securityLevel) {
+                    SecurityLevel.STRONGBOX -> Color(0xFF81C784)
+                    SecurityLevel.TEE       -> Color(0xFF4FC3F7)
+                    else                    -> Color(0xFFFF6B6B)
+                }
+            )
+        }
     }
 }
 
+/**
+ * Caja de texto monoespaciado con toggle mostrar/ocultar.
+ */
 @Composable
-private fun PublicKeyBox(publicKey: String) {
+private fun ExpandableMonoBox(
+    label: String,
+    hiddenLabel: String,
+    content: String,
+    topPadding: androidx.compose.ui.unit.Dp = 12.dp,
+) {
     var expanded by remember { mutableStateOf(false) }
-    Column(modifier = Modifier.padding(top = 12.dp)) {
+    Column(modifier = Modifier.padding(top = topPadding)) {
         TextButton(
             onClick = { expanded = !expanded },
             contentPadding = PaddingValues(0.dp)
@@ -350,22 +466,16 @@ private fun PublicKeyBox(publicKey: String) {
                 modifier = Modifier.size(16.dp)
             )
             Spacer(Modifier.width(4.dp))
-            Text(
-                if (expanded) "Ocultar clave pública" else "Ver clave pública (Base64)",
-                fontSize = 13.sp
-            )
+            Text(if (expanded) hiddenLabel else label, fontSize = 13.sp)
         }
         AnimatedVisibility(visible = expanded) {
             Text(
-                text = publicKey,
-                style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f),
+                text     = content,
+                style    = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                color    = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(
-                        MaterialTheme.colorScheme.surface,
-                        RoundedCornerShape(8.dp)
-                    )
+                    .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(8.dp))
                     .padding(10.dp)
             )
         }
@@ -382,11 +492,11 @@ private fun ActionButton(
     onClick: () -> Unit
 ) {
     Button(
-        onClick = onClick,
-        enabled = enabled,
+        onClick  = onClick,
+        enabled  = enabled,
         modifier = modifier.height(44.dp),
-        colors = ButtonDefaults.buttonColors(containerColor = containerColor),
-        shape = RoundedCornerShape(10.dp),
+        colors   = ButtonDefaults.buttonColors(containerColor = containerColor),
+        shape    = RoundedCornerShape(10.dp),
         contentPadding = PaddingValues(horizontal = 12.dp)
     ) {
         Icon(
@@ -410,7 +520,7 @@ private fun StatusBar(message: String) {
             .clip(RoundedCornerShape(8.dp))
             .background(bg)
             .padding(horizontal = 14.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
+        verticalAlignment     = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Text(if (isError) "⚠" else "✓", color = fg, fontSize = 14.sp)

@@ -1,4 +1,4 @@
-package dev.tohure.didblockchainlessdemo
+package dev.tohure.didblockchainlessdemo.storage
 
 import android.content.Context
 import androidx.core.content.edit
