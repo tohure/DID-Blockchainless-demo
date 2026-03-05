@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "dev.tohure.didmobilewallet"
+    namespace = "dev.tohure.didblockchainlessdemo"
     compileSdk {
         version = release(36) {
             minorApiLevel = 1
@@ -12,8 +12,8 @@ android {
     }
 
     defaultConfig {
-        applicationId = "dev.tohure.didmobilewallet"
-        minSdk = 28
+        applicationId = "dev.tohure.didblockchainlessdemo"
+        minSdk = 27
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
@@ -37,4 +37,31 @@ android {
     buildFeatures {
         compose = true
     }
+}
+
+dependencies {
+    // ── Compose BOM ──────────────────────────────────────────────────
+    implementation(platform(libs.androidx.compose.bom))
+    implementation(libs.androidx.compose.ui)
+    implementation(libs.androidx.compose.ui.graphics)
+    implementation(libs.androidx.compose.ui.tooling.preview)
+    implementation(libs.androidx.compose.material3)
+
+    // ── Activity & ViewModel ─────────────────────────────────────────
+    implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.androidx.lifecycle.runtime.compose)
+
+    // ── Core ─────────────────────────────────────────────────────────
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.lifecycle.runtime.ktx)
+
+    // ── Testing ──────────────────────────────────────────────────────
+    testImplementation(libs.junit)
+    androidTestImplementation(libs.androidx.junit)
+    androidTestImplementation(libs.androidx.espresso.core)
+    androidTestImplementation(platform(libs.androidx.compose.bom))
+    androidTestImplementation(libs.androidx.compose.ui.test.junit4)
+    debugImplementation(libs.androidx.compose.ui.tooling)
+    debugImplementation(libs.androidx.compose.ui.test.manifest)
 }
