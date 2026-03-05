@@ -20,7 +20,9 @@ class CredentialRepository(
     /**
      * Solicita un nonce de un solo uso al backend.
      * Se usa para construir el Proof JWT antes de solicitar la emisión de una VC.
+     *
+     * @param holderDid DID del holder (did:key:z...) generado en el dispositivo.
      */
-    suspend fun fetchNonce(): Result<String> =
-        runCatching { api.getNonce().nonce }
+    suspend fun fetchNonce(holderDid: String): Result<String> =
+        runCatching { api.getNonce(holderDid).nonce }
 }

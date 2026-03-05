@@ -5,6 +5,7 @@ import dev.tohure.didblockchainlessdemo.data.model.VerifiableCredentialResponse
 import retrofit2.http.GET
 import retrofit2.http.Header
 import retrofit2.http.Path
+import retrofit2.http.Query
 
 interface CredentialApi {
 
@@ -17,8 +18,10 @@ interface CredentialApi {
 
     /**
      * Solicita un nonce de un solo uso al backend para incluirlo en el Proof JWT.
-     * Este nonce evita ataques de replay al vincular el Proof JWT a una sesión concreta.
+     * El backend vincula el nonce al [holderDid] para evitar ataques de replay.
      */
     @GET("credentials/nonce")
-    suspend fun getNonce(): NonceResponse
+    suspend fun getNonce(
+        @Query("holder_did") holderDid: String,
+    ): NonceResponse
 }
