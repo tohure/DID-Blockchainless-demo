@@ -184,6 +184,6 @@ El JWT tiene 3 partes separadas por `.`. La sección **Payload (Decoded)** de la
 
 También puedes encontrarme en mis redes como **@tohure**:
 
-[![Twitter](https://img.shields.io/badge/Twitter-@tohure-1DA1F2?logo=twitter&logoColor=white)](https://twitter.com/tohure)
+[![Twitter](https://img.shields.io/badge/Twitter-@tohure-1DA1F2?logo=twitter&logoColor=white)](https://twitter.com/tohure_)
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-@tohure-0A66C2?logo=linkedin&logoColor=white)](https://linkedin.com/in/tohure)
 [![Medium](https://img.shields.io/badge/Medium-@tohure-000000?logo=medium&logoColor=white)](https://medium.com/@tohure)
