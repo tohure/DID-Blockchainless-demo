@@ -46,13 +46,13 @@ fun CredentialSection(
         )
         Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            ActionButton(
+            /*ActionButton(
                 text = "Descargar y cifrar",
                 icon = R.drawable.download,
                 enabled = !state.isLoading && !state.isFetching && state.rsaKeyExists,
                 modifier = Modifier.weight(1f),
                 onClick = onFetchAndEncrypt
-            )
+            )*/
             ActionButton(
                 text = "Cifrar y guardar",
                 icon = R.drawable.lock,

@@ -21,13 +21,15 @@ fun CredentialViewModel.requestCredentialWithNonce(
                 isFetching = true, statusMessage = "Solicitando nonce al backend..."
             )
         }
-        check(didKeyManager.keysExist()) { "Primero genera las claves DID" }
 
-        val did = didKeyManager.getDID()
+        runCatching {
+            check(didKeyManager.keysExist()) { "Primero genera las claves DID" }
 
-        repository.fetchNonce(holderDid = did).onSuccess { nonce ->
-            val proofJwt =
-                proofBuilder.build(issuerUrl, nonce, credentialType, subjectClaims)
+            val did = didKeyManager.getDID()
+            val nonce = repository.fetchNonce(holderDid = did).getOrThrow()
+
+            proofBuilder.build(issuerUrl, nonce, credentialType, subjectClaims)
+        }.onSuccess { proofJwt ->
             _uiState.update {
                 it.copy(
                     isFetching = false,
@@ -39,7 +41,7 @@ fun CredentialViewModel.requestCredentialWithNonce(
             _uiState.update {
                 it.copy(
                     isFetching = false,
-                    statusMessage = "Error al obtener nonce: ${e.message}",
+                    statusMessage = "Error: ${e.message ?: "Error desconocido"}",
                 )
             }
         }
@@ -53,13 +55,15 @@ fun CredentialViewModel.fetchAndEncrypt(credentialId: String, token: String) {
                 isFetching = true, statusMessage = "Descargando credencial..."
             )
         }
-        repository.fetchCredential(credentialId, token).onSuccess { json ->
+
+        runCatching {
+            val json = repository.fetchCredential(credentialId, token).getOrThrow()
             _uiState.update { it.copy(jsonInput = json, isFetching = false) }
             encrypt()
         }.onFailure { e ->
             _uiState.update {
                 it.copy(
-                    isFetching = false, statusMessage = "Error al descargar: ${e.message}"
+                    isFetching = false, statusMessage = "Error: ${e.message ?: "Error desconocido"}"
                 )
             }
         }

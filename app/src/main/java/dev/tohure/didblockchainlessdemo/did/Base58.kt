@@ -15,7 +15,7 @@ object Base58 {
             n = quotient
         }
         // Ceros iniciales
-        input.takeWhile { it == 0.toByte() }.forEach { sb.append(ALPHABET[0]) }
+        repeat(input.takeWhile { it == 0.toByte() }.size) { sb.append(ALPHABET[0]) }
         return sb.reverse().toString()
     }
 }

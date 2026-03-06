@@ -76,6 +76,9 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.process)
 
+    // ── Navigation ───────────────────────────────────────────────────
+    implementation(libs.navigation.compose)
+
     // ── Networking ───────────────────────────────────────────────────
     implementation(libs.retrofit.core)
     implementation(libs.retrofit.kotlinx.serialization)

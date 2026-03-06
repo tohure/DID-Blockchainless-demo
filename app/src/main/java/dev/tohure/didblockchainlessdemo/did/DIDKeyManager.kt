@@ -63,19 +63,19 @@ class DIDKeyManager(context: Context) {
         kpg.initialize(spec, SecureRandom())
         val pair = kpg.generateKeyPair()
 
-        val ecPub  = pair.public  as ECPublicKey
+        val ecPub = pair.public as ECPublicKey
         val ecPriv = pair.private as ECPrivateKey
 
         // Clave privada — escalar S como 32 bytes big-endian
         val privBytes = BigIntegers.asUnsignedByteArray(32, ecPriv.d)
         // Clave pública — punto comprimido (33 bytes)
-        val pubBytes  = ecPub.q.getEncoded(true)
+        val pubBytes = ecPub.q.getEncoded(true)
 
         // Cifrar clave privada con AES-GCM (la clave AES vive en Keystore)
         val wrapKey = getOrCreateWrapKey()
-        val cipher  = Cipher.getInstance("AES/GCM/NoPadding")
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         cipher.init(Cipher.ENCRYPT_MODE, wrapKey)
-        val iv      = cipher.iv
+        val iv = cipher.iv
         val encPriv = cipher.doFinal(privBytes)
 
         // Limpiar clave privada de RAM inmediatamente
@@ -83,8 +83,8 @@ class DIDKeyManager(context: Context) {
 
         prefs.edit {
             putString(PREF_ENC_PRIV, Base64.encodeToString(encPriv, Base64.NO_WRAP))
-            putString(PREF_IV,       Base64.encodeToString(iv,      Base64.NO_WRAP))
-            putString(PREF_PUB_HEX,  pubBytes.joinToString("") { "%02x".format(it) })
+            putString(PREF_IV, Base64.encodeToString(iv, Base64.NO_WRAP))
+            putString(PREF_PUB_HEX, pubBytes.joinToString("") { "%02x".format(it) })
         }
         return true
     }
@@ -98,11 +98,11 @@ class DIDKeyManager(context: Context) {
     }
 
     /** Algoritmo did:key para secp256k1:
-        [0xe7,0x01] + pubKey(33 bytes) → base58btc → "z" + encoded → "did:key:z..."*/
+    [0xe7,0x01] + pubKey(33 bytes) → base58btc → "z" + encoded → "did:key:z..."*/
     fun getDID(): String {
         val pubBytes = getPublicKeyBytes()
         val multikey = SECP256K1_MULTICODEC + pubBytes
-        val encoded  = "z" + Base58.encode(multikey)
+        val encoded = "z" + Base58.encode(multikey)
         return "did:key:$encoded"
     }
 
@@ -111,7 +111,7 @@ class DIDKeyManager(context: Context) {
      *   did:key:zQ3sh...#zQ3sh...
      */
     fun getKeyId(): String {
-        val did      = getDID()
+        val did = getDID()
         val fragment = did.removePrefix("did:key:")
         return "$did#$fragment"
     }
@@ -124,7 +124,7 @@ class DIDKeyManager(context: Context) {
     fun sign(data: ByteArray): ByteArray {
         val privBytes = loadPrivateKey()
         return try {
-            val spec   = ECNamedCurveTable.getParameterSpec("secp256k1")
+            val spec = ECNamedCurveTable.getParameterSpec("secp256k1")
             val domain = ECDomainParameters(spec.curve, spec.g, spec.n, spec.h)
 
             // RFC 6979: nonce determinístico (evita vulnerabilidades por aleatoriedad)
@@ -132,7 +132,7 @@ class DIDKeyManager(context: Context) {
             signer.init(true, ECPrivateKeyParameters(BigInteger(1, privBytes), domain))
 
             val hash = sha256(data)
-            val sig  = signer.generateSignature(hash)
+            val sig = signer.generateSignature(hash)
 
             // Formato R‖S (64 bytes, sin DER)
             val r = BigIntegers.asUnsignedByteArray(32, sig[0])
@@ -144,12 +144,12 @@ class DIDKeyManager(context: Context) {
     }
 
     fun getSecurityLevel(): SecurityLevel {
-        val ks  = KeyStore.getInstance(KEYSTORE_PROVIDER).apply { load(null) }
+        val ks = KeyStore.getInstance(KEYSTORE_PROVIDER).apply { load(null) }
         val key = ks.getKey(WRAP_KEY_ALIAS, null) ?: return SecurityLevel.UNKNOWN
         return KeystoreHelper.querySecurityLevel(
             keystoreProvider = KEYSTORE_PROVIDER,
-            keyAlgorithm     = KeyProperties.KEY_ALGORITHM_AES,
-            key              = key,
+            keyAlgorithm = KeyProperties.KEY_ALGORITHM_AES,
+            key = key,
         )
     }
 
@@ -157,16 +157,13 @@ class DIDKeyManager(context: Context) {
         val ks = KeyStore.getInstance(KEYSTORE_PROVIDER).apply { load(null) }
         if (!ks.containsAlias(WRAP_KEY_ALIAS)) {
             val kg = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, KEYSTORE_PROVIDER)
-            KeystoreHelper.withBestSecurity(
-                strongBoxBlock = {
-                    kg.init(buildWrapKeySpec(strongBox = true))
-                    kg.generateKey()
-                },
-                fallbackBlock = {
-                    kg.init(buildWrapKeySpec(strongBox = false))
-                    kg.generateKey()
-                }
-            )
+            KeystoreHelper.withBestSecurity(strongBoxBlock = {
+                kg.init(buildWrapKeySpec(strongBox = true))
+                kg.generateKey()
+            }, fallbackBlock = {
+                kg.init(buildWrapKeySpec(strongBox = false))
+                kg.generateKey()
+            })
         }
         return ks.getKey(WRAP_KEY_ALIAS, null) as SecretKey
     }
@@ -174,9 +171,7 @@ class DIDKeyManager(context: Context) {
     private fun buildWrapKeySpec(strongBox: Boolean): KeyGenParameterSpec {
         val builder = KeyGenParameterSpec.Builder(
             WRAP_KEY_ALIAS, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
-        )
-            .setKeySize(256)
-            .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+        ).setKeySize(256).setBlockModes(KeyProperties.BLOCK_MODE_GCM)
             .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
@@ -192,7 +187,7 @@ class DIDKeyManager(context: Context) {
             ?: error("IV no encontrado. Las claves pueden estar corruptas.")
 
         val encPriv = Base64.decode(encPrivStr, Base64.NO_WRAP)
-        val iv      = Base64.decode(ivStr,      Base64.NO_WRAP)
+        val iv = Base64.decode(ivStr, Base64.NO_WRAP)
         val wrapKey = getOrCreateWrapKey()
 
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")

@@ -21,6 +21,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -167,10 +168,16 @@ fun ActionButton(
 }
 
 @Composable
-fun StatusBar(message: String) {
+fun StatusBar(message: String, isLoading: Boolean = false) {
     val isError = message.startsWith("Error")
-    val bg = if (isError) Color(0xFF3E1A1A) else Color(0xFF1A2E1A)
-    val fg = if (isError) Color(0xFFFF8A80) else Color(0xFFA5D6A7)
+    
+    // Definición de colores: Rojo (Error), Amarillo (Cargando), Verde (Éxito)
+    val (bg, fg, icon) = when {
+        isError -> Triple(Color(0xFF3E1A1A), Color(0xFFFF8A80), "⚠")
+        isLoading -> Triple(Color(0xFF3E2723), Color(0xFFFFCC80), "⏳") // Amarillo oscuro fondo, Amarillo claro texto
+        else -> Triple(Color(0xFF1A2E1A), Color(0xFFA5D6A7), "✓")
+    }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -180,7 +187,15 @@ fun StatusBar(message: String) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Text(if (isError) "⚠" else "✓", color = fg, fontSize = 14.sp)
+        if (isLoading) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(14.dp),
+                strokeWidth = 2.dp,
+                color = fg
+            )
+        } else {
+            Text(icon, color = fg, fontSize = 14.sp)
+        }
         Text(message, style = MaterialTheme.typography.bodySmall, color = fg)
     }
 }
