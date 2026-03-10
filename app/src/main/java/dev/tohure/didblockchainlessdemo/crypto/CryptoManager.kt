@@ -1,10 +1,8 @@
 package dev.tohure.didblockchainlessdemo.crypto
 
-import android.os.Build
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import java.security.KeyPairGenerator
-import java.security.KeyStore
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
@@ -32,7 +30,6 @@ import javax.crypto.spec.PSource
 class CryptoManager {
 
     companion object {
-        private const val KEYSTORE_PROVIDER = "AndroidKeyStore"
         private const val KEY_ALIAS = "VerifiableCredentialKey"
 
         private const val RSA_ALGORITHM = "RSA"
@@ -53,16 +50,17 @@ class CryptoManager {
      * Genera el par RSA en Keystore si aún no existe.
      * @return true si se generó, false si ya existía.
      */
+    @Synchronized
     fun generateKeyPairIfNeeded(): Boolean {
         if (keyPairExists()) return false
         KeystoreHelper.withBestSecurity(
             strongBoxBlock = {
-                val kpg = KeyPairGenerator.getInstance(RSA_ALGORITHM, KEYSTORE_PROVIDER)
+                val kpg = KeyPairGenerator.getInstance(RSA_ALGORITHM, KeystoreHelper.KEYSTORE_PROVIDER)
                 kpg.initialize(buildKeySpec(strongBox = true))
                 kpg.generateKeyPair()
             },
             fallbackBlock = {
-                val kpg = KeyPairGenerator.getInstance(RSA_ALGORITHM, KEYSTORE_PROVIDER)
+                val kpg = KeyPairGenerator.getInstance(RSA_ALGORITHM, KeystoreHelper.KEYSTORE_PROVIDER)
                 kpg.initialize(buildKeySpec(strongBox = false))
                 kpg.generateKeyPair()
             }
@@ -71,29 +69,25 @@ class CryptoManager {
     }
 
     private fun buildKeySpec(strongBox: Boolean): KeyGenParameterSpec {
-        val builder = KeyGenParameterSpec.Builder(
-            KEY_ALIAS, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
-        )
-            .setKeySize(KEY_SIZE_RSA)
-            .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_RSA_OAEP)
-            .setDigests(KeyProperties.DIGEST_SHA256, KeyProperties.DIGEST_SHA1)
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            builder.setIsStrongBoxBacked(strongBox)
+        return KeystoreHelper.buildKeyGenSpec(
+            alias = KEY_ALIAS,
+            purposes = KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT,
+            isStrongBox = strongBox
+        ) {
+            setKeySize(KEY_SIZE_RSA)
+            setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_RSA_OAEP)
+            setDigests(KeyProperties.DIGEST_SHA256, KeyProperties.DIGEST_SHA1)
         }
-        return builder.build()
     }
 
     fun getSecurityLevel(): SecurityLevel {
-        val keyStore = loadKeyStore()
-        val privateKey = keyStore.getKey(KEY_ALIAS, null) ?: return SecurityLevel.UNKNOWN
-        return KeystoreHelper.querySecurityLevel(KEYSTORE_PROVIDER, RSA_ALGORITHM, privateKey)
+        return KeystoreHelper.getAsymmetricKeySecurityLevel(KEY_ALIAS, RSA_ALGORITHM)
     }
 
-    fun keyPairExists(): Boolean = loadKeyStore().containsAlias(KEY_ALIAS)
+    fun keyPairExists(): Boolean = KeystoreHelper.keyStore.containsAlias(KEY_ALIAS)
 
     fun deleteKeyPair() {
-        val keyStore = loadKeyStore()
+        val keyStore = KeystoreHelper.keyStore
         if (keyStore.containsAlias(KEY_ALIAS)) keyStore.deleteEntry(KEY_ALIAS)
     }
 
@@ -102,7 +96,7 @@ class CryptoManager {
      * Puede compartirse libremente.
      */
     fun getPublicKeyBase64(): String {
-        val certificate = loadKeyStore().getCertificate(KEY_ALIAS)
+        val certificate = KeystoreHelper.keyStore.getCertificate(KEY_ALIAS)
             ?: error("Par de claves no encontrado. Llama a generateKeyPairIfNeeded() primero.")
         return Base64.encodeToString(certificate.publicKey.encoded, Base64.NO_WRAP)
     }
@@ -144,9 +138,6 @@ class CryptoManager {
         return String(cipher.doFinal(encryptedData), Charsets.UTF_8)
     }
 
-    private fun loadKeyStore(): KeyStore =
-        KeyStore.getInstance(KEYSTORE_PROVIDER).apply { load(null) }
-
     private fun generateAesKey(): SecretKey {
         val keyGen = KeyGenerator.getInstance(AES_ALGORITHM)
         keyGen.init(AES_KEY_SIZE)
@@ -154,7 +145,7 @@ class CryptoManager {
     }
 
     private fun encryptAesKeyWithRsa(aesKey: SecretKey): ByteArray {
-        val publicKey = loadKeyStore().getCertificate(KEY_ALIAS).publicKey
+        val publicKey = KeystoreHelper.keyStore.getCertificate(KEY_ALIAS).publicKey
         val cipher = Cipher.getInstance(RSA_TRANSFORMATION)
         val oaepParams = OAEPParameterSpec(
             "SHA-256", "MGF1", MGF1ParameterSpec.SHA1, PSource.PSpecified.DEFAULT
@@ -164,7 +155,7 @@ class CryptoManager {
     }
 
     private fun decryptAesKeyWithRsa(encryptedAesKey: ByteArray): SecretKey {
-        val privateKey = loadKeyStore().getKey(KEY_ALIAS, null)
+        val privateKey = KeystoreHelper.keyStore.getKey(KEY_ALIAS, null)
         val cipher = Cipher.getInstance(RSA_TRANSFORMATION)
         val oaepParams = OAEPParameterSpec(
             "SHA-256", "MGF1", MGF1ParameterSpec.SHA1, PSource.PSpecified.DEFAULT

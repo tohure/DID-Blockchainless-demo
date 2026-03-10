@@ -18,7 +18,7 @@ fun CredentialViewModel.requestCredentialWithNonce(
     viewModelScope.launch(Dispatchers.IO) {
         _uiState.update {
             it.copy(
-                isFetching = true, statusMessage = "Solicitando nonce al backend..."
+                isFetching = true, statusMessage = "Iniciando proceso..."
             )
         }
 
@@ -26,15 +26,39 @@ fun CredentialViewModel.requestCredentialWithNonce(
             check(didKeyManager.keysExist()) { "Primero genera las claves DID" }
 
             val did = didKeyManager.getDID()
+            val clientId = subjectClaims["email"] ?: error("El email es requerido para registrar el DID")
+
+            _uiState.update { it.copy(statusMessage = "Registrando DID...") }
+            repository.registerDid(did, clientId).getOrThrow()
+
+            _uiState.update { it.copy(statusMessage = "Solicitando nonce...") }
             val nonce = repository.fetchNonce(holderDid = did).getOrThrow()
 
-            proofBuilder.build(issuerUrl, nonce, credentialType, subjectClaims)
-        }.onSuccess { proofJwt ->
+            val proofJwt = proofBuilder.build(issuerUrl, nonce, credentialType, subjectClaims)
+            
+            _uiState.update { 
+                it.copy(
+                    lastProofJwt = proofJwt,
+                    statusMessage = "Enviando Proof JWT..." 
+                ) 
+            }
+
+            val response = repository.registerProof(did, proofJwt).getOrThrow()
+            val credential = response.credential
+
+            val payload = performEncryption(credential)
+
+            Triple(proofJwt, credential, payload)
+
+        }.onSuccess { (proofJwt, credential, payload) ->
             _uiState.update {
                 it.copy(
                     isFetching = false,
                     lastProofJwt = proofJwt,
-                    statusMessage = "Proof JWT generado ✓  —  listo para enviar al issuer",
+                    jsonInput = credential,
+                    decryptedJson = credential,
+                    encryptedPayload = payload,
+                    statusMessage = "Credencial recibida y cifrada correctamente",
                 )
             }
         }.onFailure { e ->
@@ -58,8 +82,20 @@ fun CredentialViewModel.fetchAndEncrypt(credentialId: String, token: String) {
 
         runCatching {
             val json = repository.fetchCredential(credentialId, token).getOrThrow()
-            _uiState.update { it.copy(jsonInput = json, isFetching = false) }
-            encrypt()
+            _uiState.update { it.copy(jsonInput = json) }
+
+            val payload = performEncryption(json)
+            payload
+            
+        }.onSuccess { payload ->
+             _uiState.update {
+                it.copy(
+                    isFetching = false,
+                    encryptedPayload = payload,
+                    decryptedJson = "",
+                    statusMessage = "JSON cifrado y guardado con AES-256-GCM + RSA-OAEP",
+                )
+            }
         }.onFailure { e ->
             _uiState.update {
                 it.copy(

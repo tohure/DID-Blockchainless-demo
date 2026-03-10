@@ -37,7 +37,7 @@ class ProofJWTBuilder(private val didKeyManager: DIDKeyManager) {
         val payloadB64 = base64url(Json.encodeToString(payload).toByteArray())
         val signingInput = "$headerB64.$payloadB64"
 
-        val signature = didKeyManager.sign(signingInput.toByteArray(Charsets.UTF_8))
+        val signature = didKeyManager.sign(signingInput.toByteArray(Charsets.UTF_8)).getOrThrow()
         val sigB64 = base64url(signature)
 
         return "$signingInput.$sigB64"

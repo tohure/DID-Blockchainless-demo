@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.tohure.didblockchainlessdemo.R
+import dev.tohure.didblockchainlessdemo.ui.components.CredentialResultSection
 import dev.tohure.didblockchainlessdemo.ui.components.DidSection
 import dev.tohure.didblockchainlessdemo.ui.components.ProofJwtSection
 import dev.tohure.didblockchainlessdemo.ui.components.StatusBar
@@ -106,6 +107,11 @@ fun DidScreen(
                 state = state,
                 onRequest = { vm.requestCredentialWithNonce() },
                 onClear = vm::clearProofJwt
+            )
+
+            CredentialResultSection(
+                state = state,
+                onClear = vm::clearDecryptedJson
             )
 
             Spacer(Modifier.height(24.dp))

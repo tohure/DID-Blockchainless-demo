@@ -3,13 +3,11 @@ package dev.tohure.didblockchainlessdemo.ui.viewmodel
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import dev.tohure.didblockchainlessdemo.crypto.CryptoManager
+import dev.tohure.didblockchainlessdemo.SecureCredentialsApp
 import dev.tohure.didblockchainlessdemo.crypto.SecurityLevel
 import dev.tohure.didblockchainlessdemo.data.repository.CredentialRepository
-import dev.tohure.didblockchainlessdemo.did.DIDKeyManager
 import dev.tohure.didblockchainlessdemo.did.ProofJWTBuilder
 import dev.tohure.didblockchainlessdemo.storage.CredentialStore
-import dev.tohure.didblockchainlessdemo.ui.viewmodel.CredentialUiState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -19,8 +17,9 @@ import kotlinx.coroutines.launch
 
 class CredentialViewModel(application: Application) : AndroidViewModel(application) {
 
-    internal val didKeyManager = DIDKeyManager(application) // DID (secp256k1)
-    internal val crypto = CryptoManager() // cifrado VCs (RSA)
+    private val app = application as SecureCredentialsApp
+    internal val didKeyManager = app.didKeyManager // DID (secp256k1)
+    internal val crypto = app.cryptoManager // cifrado VCs (RSA)
     internal val store = CredentialStore(application)
     internal val repository = CredentialRepository()
     internal val proofBuilder get() = ProofJWTBuilder(didKeyManager)

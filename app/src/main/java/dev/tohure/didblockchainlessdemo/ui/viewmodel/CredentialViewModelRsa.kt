@@ -35,25 +35,37 @@ fun CredentialViewModel.deleteRsaKeys() = launchCrypto {
     }
 }
 
-fun CredentialViewModel.encrypt() = launchCrypto {
+/**
+ * Lógica de cifrado reutilizable y síncrona.
+ * Lanza excepciones si falla, para ser capturadas por quien la llame.
+ */
+internal fun CredentialViewModel.performEncryption(input: String): String {
     check(crypto.keyPairExists()) { "Primero genera las claves RSA" }
-    val json = _uiState.value.jsonInput
-    require(json.isNotBlank()) { "El JSON no puede estar vacío" }
+    require(input.isNotBlank()) { "El contenido no puede estar vacío" }
 
-    try {
-        JSONObject(json)
-    } catch (e: Exception) {
-        Log.e("tohure-did", "encrypt: $e")
-        throw IllegalArgumentException("El texto no es un JSON válido")
+    if (input.trim().startsWith("{")) {
+        try {
+            JSONObject(input)
+        } catch (e: Exception) {
+            Log.e("tohure-rsa", "performEncryption: $e")
+            throw IllegalArgumentException("El texto no es un JSON válido")
+        }
     }
 
-    val payload = crypto.encrypt(json)
+    val payload = crypto.encrypt(input)
     store.save(CREDENTIAL_ID, payload)
+    return payload
+}
+
+fun CredentialViewModel.encrypt() = launchCrypto {
+    val json = _uiState.value.jsonInput
+    val payload = performEncryption(json)
+
     _uiState.update {
         it.copy(
             encryptedPayload = payload,
             decryptedJson = "",
-            statusMessage = "JSON cifrado y guardado con AES-256-GCM + RSA-OAEP",
+            statusMessage = "Contenido cifrado y guardado con AES-256-GCM + RSA-OAEP",
         )
     }
 }
@@ -62,11 +74,13 @@ fun CredentialViewModel.decrypt() = launchCrypto {
     check(crypto.keyPairExists()) { "Primero genera las claves RSA" }
     val payload =
         store.load(CREDENTIAL_ID) ?: error("No hay ninguna credencial guardada. Cifra primero.")
+
     val json = crypto.decrypt(payload)
+
     _uiState.update {
         it.copy(
             decryptedJson = json,
-            statusMessage = "JSON descifrado correctamente con la clave privada del Keystore",
+            statusMessage = "Contenido descifrado correctamente con la clave privada del Keystore",
         )
     }
 }

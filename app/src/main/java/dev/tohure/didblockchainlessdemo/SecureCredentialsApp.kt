@@ -4,6 +4,7 @@ import android.app.Application
 import android.util.Log
 import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.lifecycle.lifecycleScope
+import dev.tohure.didblockchainlessdemo.crypto.CryptoManager
 import dev.tohure.didblockchainlessdemo.crypto.SecurityLevel
 import dev.tohure.didblockchainlessdemo.did.DIDKeyManager
 import kotlinx.coroutines.Dispatchers
@@ -13,16 +14,18 @@ import java.security.Security
 
 class SecureCredentialsApp : Application() {
 
-    lateinit var didKeyManager: DIDKeyManager
-        private set
+    val didKeyManager: DIDKeyManager by lazy { DIDKeyManager(this) }
+    val cryptoManager: CryptoManager by lazy { CryptoManager() }
 
     override fun onCreate() {
         super.onCreate()
         setupBouncyCastle()
-        didKeyManager = DIDKeyManager(this)
+
         // Inicializar claves en background para no bloquear el hilo principal
         ProcessLifecycleOwner.get().lifecycleScope.launch(Dispatchers.IO) {
             didKeyManager.generateKeysIfNeeded()
+            cryptoManager.generateKeyPairIfNeeded()
+
             val level = didKeyManager.getSecurityLevel()
             if (level == SecurityLevel.SOFTWARE) {
                 Log.w("tohure-did", "Wrap key sin respaldo hardware")

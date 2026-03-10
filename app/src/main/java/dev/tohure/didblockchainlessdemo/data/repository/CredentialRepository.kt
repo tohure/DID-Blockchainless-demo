@@ -1,5 +1,8 @@
 package dev.tohure.didblockchainlessdemo.data.repository
 
+import dev.tohure.didblockchainlessdemo.data.model.DIDRegisterRequest
+import dev.tohure.didblockchainlessdemo.data.model.IssueVCRequest
+import dev.tohure.didblockchainlessdemo.data.model.IssueVCResponse
 import dev.tohure.didblockchainlessdemo.data.model.VerifiableCredentialResponse
 import dev.tohure.didblockchainlessdemo.data.network.CredentialApi
 import dev.tohure.didblockchainlessdemo.data.network.NetworkClient
@@ -18,6 +21,14 @@ class CredentialRepository(
         }
 
     /**
+     * Registra el DID del holder en el backend.
+     */
+    suspend fun registerDid(did: String, clientId: String): Result<Unit> =
+        runCatching {
+            api.registerDID(DIDRegisterRequest(clientId = clientId, did = did))
+        }
+
+    /**
      * Solicita un nonce de un solo uso al backend.
      * Se usa para construir el Proof JWT antes de solicitar la emisión de una VC.
      *
@@ -25,4 +36,12 @@ class CredentialRepository(
      */
     suspend fun fetchNonce(holderDid: String): Result<String> =
         runCatching { api.getNonce(holderDid).nonce }
+
+    /**
+     * Envía el Proof JWT al backend para obtener la credencial.
+     */
+    suspend fun registerProof(did: String, proof: String): Result<IssueVCResponse> =
+        runCatching {
+            api.registerProof(IssueVCRequest(holderDid = did, proof = proof))
+        }
 }
