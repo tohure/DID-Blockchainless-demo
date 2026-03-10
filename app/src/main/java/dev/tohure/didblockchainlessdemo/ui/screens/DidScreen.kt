@@ -110,8 +110,7 @@ fun DidScreen(
             )
 
             CredentialResultSection(
-                state = state,
-                onClear = vm::clearDecryptedJson
+                state = state
             )
 
             Spacer(Modifier.height(24.dp))

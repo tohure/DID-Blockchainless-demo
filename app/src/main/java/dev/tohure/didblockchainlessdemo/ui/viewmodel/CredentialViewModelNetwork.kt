@@ -5,6 +5,8 @@ import dev.tohure.didblockchainlessdemo.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 
 fun CredentialViewModel.requestCredentialWithNonce(
     issuerUrl: String = BuildConfig.BASE_URL,
@@ -26,7 +28,8 @@ fun CredentialViewModel.requestCredentialWithNonce(
             check(didKeyManager.keysExist()) { "Primero genera las claves DID" }
 
             val did = didKeyManager.getDID()
-            val clientId = subjectClaims["email"] ?: error("El email es requerido para registrar el DID")
+            val clientId =
+                subjectClaims["email"] ?: error("El email es requerido para registrar el DID")
 
             _uiState.update { it.copy(statusMessage = "Registrando DID...") }
             repository.registerDid(did, clientId).getOrThrow()
@@ -35,30 +38,33 @@ fun CredentialViewModel.requestCredentialWithNonce(
             val nonce = repository.fetchNonce(holderDid = did).getOrThrow()
 
             val proofJwt = proofBuilder.build(issuerUrl, nonce, credentialType, subjectClaims)
-            
-            _uiState.update { 
+
+            _uiState.update {
                 it.copy(
                     lastProofJwt = proofJwt,
-                    statusMessage = "Enviando Proof JWT..." 
-                ) 
+                    statusMessage = "Enviando Proof JWT..."
+                )
             }
 
-            val response = repository.registerProof(did, proofJwt).getOrThrow()
-            val credential = response.credential
+            repository.registerProof(did, proofJwt).getOrThrow()
 
-            val payload = performEncryption(credential)
+            _uiState.update { it.copy(statusMessage = "Obteniendo metadatos...") }
+            val metadata = repository.getMetaDataCredential(did).getOrThrow()
+            val metadataJson = Json.encodeToString(metadata)
 
-            Triple(proofJwt, credential, payload)
+            val payload = performEncryption(metadataJson, false)
 
-        }.onSuccess { (proofJwt, credential, payload) ->
+            Triple(proofJwt, metadataJson, payload)
+
+        }.onSuccess { (proofJwt, metadataJson, payload) ->
             _uiState.update {
                 it.copy(
                     isFetching = false,
                     lastProofJwt = proofJwt,
-                    jsonInput = credential,
-                    decryptedJson = credential,
+                    jsonInput = metadataJson,
+                    decryptedJson = metadataJson,
                     encryptedPayload = payload,
-                    statusMessage = "Credencial recibida y cifrada correctamente",
+                    statusMessage = "Metadatos recibidos y cifrados correctamente",
                 )
             }
         }.onFailure { e ->
@@ -84,11 +90,11 @@ fun CredentialViewModel.fetchAndEncrypt(credentialId: String, token: String) {
             val json = repository.fetchCredential(credentialId, token).getOrThrow()
             _uiState.update { it.copy(jsonInput = json) }
 
-            val payload = performEncryption(json)
+            val payload = performEncryption(json, false)
             payload
-            
+
         }.onSuccess { payload ->
-             _uiState.update {
+            _uiState.update {
                 it.copy(
                     isFetching = false,
                     encryptedPayload = payload,

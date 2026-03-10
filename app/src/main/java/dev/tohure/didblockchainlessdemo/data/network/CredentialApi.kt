@@ -4,7 +4,9 @@ import dev.tohure.didblockchainlessdemo.data.model.DIDRegisterRequest
 import dev.tohure.didblockchainlessdemo.data.model.DIDRegisterResponse
 import dev.tohure.didblockchainlessdemo.data.model.IssueVCRequest
 import dev.tohure.didblockchainlessdemo.data.model.IssueVCResponse
+import dev.tohure.didblockchainlessdemo.data.model.MetaDataResponseItem
 import dev.tohure.didblockchainlessdemo.data.model.NonceResponse
+import dev.tohure.didblockchainlessdemo.data.model.ValidateVpRequest
 import dev.tohure.didblockchainlessdemo.data.model.VerifiableCredentialResponse
 import retrofit2.http.Body
 import retrofit2.http.GET
@@ -41,5 +43,16 @@ interface CredentialApi {
     @POST("credentials/issue")
     suspend fun registerProof(
         @Body request: IssueVCRequest,
+    ): IssueVCResponse
+
+    @GET("credentials")
+    suspend fun getMetaDataCredential(
+        @Query("holder_did") holderDid: String
+    ): List<MetaDataResponseItem>
+
+    /** Validación de credenciales JWT. */
+    @POST("credentials/verify")
+    suspend fun validateCredentials(
+        @Body request: ValidateVpRequest,
     ): IssueVCResponse
 }

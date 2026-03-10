@@ -1,9 +1,8 @@
 package dev.tohure.didblockchainlessdemo.ui.viewmodel
 
-import android.util.Log
 import dev.tohure.didblockchainlessdemo.ui.viewmodel.CredentialViewModel.Companion.CREDENTIAL_ID
+import dev.tohure.didblockchainlessdemo.utils.ValidationUtils
 import kotlinx.coroutines.flow.update
-import org.json.JSONObject
 
 fun CredentialViewModel.generateRsaKeys() = launchCrypto {
     val generated = crypto.generateKeyPairIfNeeded()
@@ -39,17 +38,15 @@ fun CredentialViewModel.deleteRsaKeys() = launchCrypto {
  * Lógica de cifrado reutilizable y síncrona.
  * Lanza excepciones si falla, para ser capturadas por quien la llame.
  */
-internal fun CredentialViewModel.performEncryption(input: String): String {
+internal fun CredentialViewModel.performEncryption(
+    input: String,
+    validateJson: Boolean = true
+): String {
     check(crypto.keyPairExists()) { "Primero genera las claves RSA" }
     require(input.isNotBlank()) { "El contenido no puede estar vacío" }
 
-    if (input.trim().startsWith("{")) {
-        try {
-            JSONObject(input)
-        } catch (e: Exception) {
-            Log.e("tohure-rsa", "performEncryption: $e")
-            throw IllegalArgumentException("El texto no es un JSON válido")
-        }
+    if (validateJson && input.trim().startsWith("{")) {
+        ValidationUtils.validateJson(input)
     }
 
     val payload = crypto.encrypt(input)
@@ -59,6 +56,7 @@ internal fun CredentialViewModel.performEncryption(input: String): String {
 
 fun CredentialViewModel.encrypt() = launchCrypto {
     val json = _uiState.value.jsonInput
+
     val payload = performEncryption(json)
 
     _uiState.update {

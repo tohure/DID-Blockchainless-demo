@@ -3,6 +3,7 @@ package dev.tohure.didblockchainlessdemo.data.repository
 import dev.tohure.didblockchainlessdemo.data.model.DIDRegisterRequest
 import dev.tohure.didblockchainlessdemo.data.model.IssueVCRequest
 import dev.tohure.didblockchainlessdemo.data.model.IssueVCResponse
+import dev.tohure.didblockchainlessdemo.data.model.MetaDataResponseItem
 import dev.tohure.didblockchainlessdemo.data.model.VerifiableCredentialResponse
 import dev.tohure.didblockchainlessdemo.data.network.CredentialApi
 import dev.tohure.didblockchainlessdemo.data.network.NetworkClient
@@ -43,5 +44,13 @@ class CredentialRepository(
     suspend fun registerProof(did: String, proof: String): Result<IssueVCResponse> =
         runCatching {
             api.registerProof(IssueVCRequest(holderDid = did, proof = proof))
+        }
+
+    /**
+     * Obtiene los metadatos de las credenciales asociadas a un DID.
+     */
+    suspend fun getMetaDataCredential(holderDid: String): Result<List<MetaDataResponseItem>> =
+        runCatching {
+            api.getMetaDataCredential(holderDid)
         }
 }
