@@ -1,0 +1,197 @@
+package dev.tohure.didblockchainlessdemo.ui.viewmodel
+
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import dev.tohure.didblockchainlessdemo.BuildConfig
+import dev.tohure.didblockchainlessdemo.crypto.CryptoManager
+import dev.tohure.didblockchainlessdemo.crypto.SecurityLevel
+import dev.tohure.didblockchainlessdemo.data.repository.CredentialRepository
+import dev.tohure.didblockchainlessdemo.did.DIDKeyManager
+import dev.tohure.didblockchainlessdemo.did.ProofJWTBuilder
+import dev.tohure.didblockchainlessdemo.did.VpJwtBuilder
+import dev.tohure.didblockchainlessdemo.storage.CredentialStore
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+
+class DidViewModel(application: Application) : AndroidViewModel(application) {
+
+    private val didKeyManager = DIDKeyManager(application)
+    private val repository = CredentialRepository()
+    private val proofBuilder = ProofJWTBuilder(didKeyManager)
+    private val vpBuilder = VpJwtBuilder(didKeyManager)
+    
+    // Dependencias para guardar la credencial recibida
+    private val crypto = CryptoManager()
+    private val store = CredentialStore(application)
+
+    private val _uiState = MutableStateFlow(DidUiState())
+    val uiState: StateFlow<DidUiState> = _uiState.asStateFlow()
+
+    init {
+        refreshKeyStatus()
+    }
+
+    fun generateDIDKeys() = launch {
+        val generated = didKeyManager.generateKeysIfNeeded()
+        val level = didKeyManager.getSecurityLevel()
+        val did = didKeyManager.getDID()
+        val keyId = didKeyManager.getKeyId()
+        val msg = if (generated) "Identidad DID creada (secp256k1) en: ${level.name}"
+        else "Las claves DID ya existían"
+        _uiState.update {
+            it.copy(
+                didKeysExist = true,
+                did = did,
+                keyId = keyId,
+                didSecurityLevel = level,
+                statusMessage = msg,
+            )
+        }
+    }
+
+    fun deleteDIDKeys() = launch {
+        didKeyManager.deleteKeys()
+        _uiState.update {
+            it.copy(
+                didKeysExist = false,
+                did = "",
+                keyId = "",
+                didSecurityLevel = SecurityLevel.UNKNOWN,
+                lastProofJwt = "",
+                statusMessage = "Claves DID eliminadas",
+            )
+        }
+    }
+
+    fun clearProofJwt() =
+        _uiState.update { it.copy(lastProofJwt = "", statusMessage = "Proof JWT limpiado") }
+
+    fun clearDecryptedMetadata() =
+        _uiState.update { it.copy(decryptedMetadata = "", statusMessage = "Metadatos limpiados") }
+
+    fun requestCredentialWithNonce(
+        issuerUrl: String = BuildConfig.BASE_URL,
+        credentialType: String = "UniversityDegreeCredential",
+        subjectClaims: Map<String, String> = mapOf(
+            "givenName" to "Juan",
+            "familyName" to "Perez",
+            "email" to "juan@example.com"
+        ),
+    ) {
+        launch {
+            _uiState.update { it.copy(isLoading = true, statusMessage = "Iniciando proceso...") }
+
+            runCatching {
+                check(didKeyManager.keysExist()) { "Primero genera las claves DID" }
+
+                val did = didKeyManager.getDID()
+                val clientId = subjectClaims["email"] ?: error("El email es requerido")
+
+                _uiState.update { it.copy(statusMessage = "Registrando DID...") }
+                repository.registerDid(did, clientId).getOrThrow()
+
+                _uiState.update { it.copy(statusMessage = "Solicitando nonce...") }
+                val nonce = repository.fetchNonce(holderDid = did).getOrThrow()
+
+                val proofJwt = proofBuilder.build(issuerUrl, nonce, credentialType, subjectClaims)
+                _uiState.update { it.copy(lastProofJwt = proofJwt, statusMessage = "Enviando Proof JWT...") }
+
+                val credentialVC = repository.registerProof(did, proofJwt).getOrThrow()
+
+                _uiState.update { it.copy(statusMessage = "Obteniendo metadatos...") }
+                val metadata = repository.getMetaDataCredential(did).getOrThrow()
+                val metadataJson = Json.encodeToString(metadata)
+
+                // Cifrar metadatos para almacenamiento seguro
+                check(crypto.keyPairExists()) { "Se requieren claves RSA para guardar la credencial" }
+                val payload = crypto.encrypt(credentialVC.credential)
+                store.save(CREDENTIAL_ID, payload)
+
+                Triple(proofJwt, metadataJson, payload)
+
+            }.onSuccess { (proofJwt, metadataJson, payload) ->
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        lastProofJwt = proofJwt,
+                        decryptedMetadata = metadataJson,
+                        encryptedCredential = payload,
+                        statusMessage = "Metadatos recibidos y cifrados correctamente",
+                    )
+                }
+            }.onFailure { e ->
+                _uiState.update {
+                    it.copy(isLoading = false, statusMessage = "Error: ${e.message ?: "Desconocido"}")
+                }
+            }
+        }
+    }
+
+    fun validatePresentation() = launch {
+        _uiState.update { it.copy(isLoading = true, statusMessage = "Verificando presentación...") }
+
+        runCatching {
+            check(crypto.keyPairExists()) { "No hay claves RSA" }
+            val payload = store.load(CREDENTIAL_ID) ?: error("No hay credencial guardada")
+            val credentialJson = crypto.decrypt(payload)
+
+            val vpJwt = vpBuilder.build(credentialJson, BuildConfig.BASE_URL)
+            
+            repository.validateCredentials(vpJwt).getOrThrow()
+        }.onSuccess { response ->
+            val status = if (response.valid) "VP Válida" else "VP Inválida"
+            _uiState.update {
+                it.copy(
+                    isLoading = false,
+                    statusMessage = "Verificación: $status. Holder: ${response.holderDid}",
+                )
+            }
+        }.onFailure { e ->
+            _uiState.update {
+                it.copy(isLoading = false, statusMessage = "Error al verificar: ${e.message}")
+            }
+        }
+    }
+
+    private fun refreshKeyStatus() {
+        launch {
+            val didExists = didKeyManager.keysExist()
+            val did = if (didExists) runCatching { didKeyManager.getDID() }.getOrDefault("") else ""
+            val keyId = if (didExists) runCatching { didKeyManager.getKeyId() }.getOrDefault("") else ""
+            val didLevel = if (didExists) didKeyManager.getSecurityLevel() else SecurityLevel.UNKNOWN
+
+            _uiState.update {
+                it.copy(
+                    didKeysExist = didExists,
+                    did = did,
+                    keyId = keyId,
+                    didSecurityLevel = didLevel
+                )
+            }
+        }
+    }
+
+    private fun launch(block: suspend () -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            _uiState.update { it.copy(isLoading = true) }
+            runCatching { block() }
+                .onFailure { e ->
+                    _uiState.update { it.copy(isLoading = false, statusMessage = "Error: ${e.message}") }
+                }
+                .onSuccess {
+                    _uiState.update { it.copy(isLoading = false) }
+                }
+        }
+    }
+
+    companion object {
+        private const val CREDENTIAL_ID = "demo_vc"
+    }
+}

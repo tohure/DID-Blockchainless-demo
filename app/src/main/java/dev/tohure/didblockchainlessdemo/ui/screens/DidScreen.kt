@@ -27,20 +27,19 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.tohure.didblockchainlessdemo.R
 import dev.tohure.didblockchainlessdemo.ui.components.CredentialResultSection
 import dev.tohure.didblockchainlessdemo.ui.components.DidSection
 import dev.tohure.didblockchainlessdemo.ui.components.ProofJwtSection
 import dev.tohure.didblockchainlessdemo.ui.components.StatusBar
-import dev.tohure.didblockchainlessdemo.ui.viewmodel.CredentialViewModel
-import dev.tohure.didblockchainlessdemo.ui.viewmodel.deleteDIDKeys
-import dev.tohure.didblockchainlessdemo.ui.viewmodel.generateDIDKeys
-import dev.tohure.didblockchainlessdemo.ui.viewmodel.requestCredentialWithNonce
+import dev.tohure.didblockchainlessdemo.ui.components.VpSection
+import dev.tohure.didblockchainlessdemo.ui.viewmodel.DidViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DidScreen(
-    vm: CredentialViewModel,
+    vm: DidViewModel = viewModel(),
     onBack: () -> Unit,
 ) {
     val state by vm.uiState.collectAsStateWithLifecycle()
@@ -83,7 +82,7 @@ fun DidScreen(
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            if (state.isLoading || state.isFetching) {
+            if (state.isLoading) {
                 LinearProgressIndicator(
                     modifier = Modifier.fillMaxWidth(),
                     color = MaterialTheme.colorScheme.primary
@@ -93,7 +92,7 @@ fun DidScreen(
             if (state.statusMessage.isNotBlank()) {
                 StatusBar(
                     message = state.statusMessage,
-                    isLoading = state.isLoading || state.isFetching
+                    isLoading = state.isLoading
                 )
             }
 
@@ -110,7 +109,13 @@ fun DidScreen(
             )
 
             CredentialResultSection(
-                state = state
+                state = state,
+                onClear = vm::clearDecryptedMetadata
+            )
+
+            VpSection(
+                state = state,
+                onVerify = { vm.validatePresentation() }
             )
 
             Spacer(Modifier.height(24.dp))

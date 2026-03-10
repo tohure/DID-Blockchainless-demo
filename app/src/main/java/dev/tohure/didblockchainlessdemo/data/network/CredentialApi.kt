@@ -7,6 +7,7 @@ import dev.tohure.didblockchainlessdemo.data.model.IssueVCResponse
 import dev.tohure.didblockchainlessdemo.data.model.MetaDataResponseItem
 import dev.tohure.didblockchainlessdemo.data.model.NonceResponse
 import dev.tohure.didblockchainlessdemo.data.model.ValidateVpRequest
+import dev.tohure.didblockchainlessdemo.data.model.ValidateVpResponse
 import dev.tohure.didblockchainlessdemo.data.model.VerifiableCredentialResponse
 import retrofit2.http.Body
 import retrofit2.http.GET
@@ -54,5 +55,5 @@ interface CredentialApi {
     @POST("credentials/verify")
     suspend fun validateCredentials(
         @Body request: ValidateVpRequest,
-    ): IssueVCResponse
+    ): ValidateVpResponse
 }

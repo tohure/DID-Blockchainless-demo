@@ -25,7 +25,7 @@ class ProofJWTBuilder(private val didKeyManager: DIDKeyManager) {
             put("iss", did)
             put("aud", issuerUrl)
             put("iat", now)
-            put("exp", now + 300)
+            put("exp", now + 700)
             put("nonce", nonce)
             put("credential_type", credentialType)
             put("subject_claims", buildJsonObject {

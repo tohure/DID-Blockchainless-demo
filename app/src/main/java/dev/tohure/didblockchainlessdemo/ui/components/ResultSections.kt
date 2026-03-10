@@ -28,10 +28,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.tohure.didblockchainlessdemo.R
-import dev.tohure.didblockchainlessdemo.ui.viewmodel.CredentialUiState
+import dev.tohure.didblockchainlessdemo.ui.viewmodel.RsaUiState
 
 @Composable
-fun EncryptedPayloadSection(state: CredentialUiState) {
+fun EncryptedPayloadSection(state: RsaUiState) {
     AnimatedVisibility(
         visible = state.encryptedPayload.isNotBlank(),
         enter = fadeIn() + expandVertically(),
@@ -56,7 +56,11 @@ fun EncryptedPayloadSection(state: CredentialUiState) {
             )
             Text(
                 text = "Bytes: ${
-                    Base64.decode(state.encryptedPayload, Base64.NO_WRAP).size
+                    try {
+                        Base64.decode(state.encryptedPayload, Base64.NO_WRAP).size
+                    } catch (e: Exception) {
+                        0
+                    }
                 } B",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
@@ -68,7 +72,7 @@ fun EncryptedPayloadSection(state: CredentialUiState) {
 
 @Composable
 fun DecryptedJsonSection(
-    state: CredentialUiState,
+    state: RsaUiState,
     onClear: () -> Unit
 ) {
     AnimatedVisibility(
