@@ -8,8 +8,8 @@ Demo Android que implementa **Decentralized Identifiers (did:key)** sin blockcha
 
 | Módulo            | Qué hace                                                                                            |
 | ----------------- | --------------------------------------------------------------------------------------------------- |
-| **Identidad DID** | Genera un par de claves `secp256k1`, deriva un `did:key` y firma un Proof JWT con ese DID           |
-| **RSA Cifrado**   | Cifra credenciales verificables (JSON) con `AES-256-GCM + RSA-2048 OAEP` usando el Android Keystore |
+| **Identidad DID** | Genera claves `secp256k1`, registra el DID, solicita un nonce y firma un Proof JWT para obtener una VC. |
+| **RSA Cifrado**   | Cifra credenciales (JSON o JWT) con `AES-256-GCM + RSA-2048 OAEP` usando el Android Keystore.       |
 
 ---
 
@@ -32,7 +32,7 @@ Demo Android que implementa **Decentralized Identifiers (did:key)** sin blockcha
 ### 1. Añade `BASE_URL` en `local.properties` (raíz del proyecto)
 
 ```properties
-BASE_URL=https://tu-backend.azurecontainerapps.io/
+BASE_URL=https://tu-backend.com/
 ```
 
 > Si esta variable no está definida, el build falla en tiempo de compilación con un error descriptivo.
@@ -47,23 +47,29 @@ BASE_URL=https://tu-backend.azurecontainerapps.io/
 
 ## Flujo principal
 
+```mermaid
+graph TD
+    A[Inicio App] --> B{Claves DID existen?}
+    B -- No --> C[Generar par secp256k1]
+    B -- Sí --> D[Pantalla DID]
+    
+    D --> E[Registrar DID]
+    E --> F[Solicitar Nonce]
+    F --> G[Generar Proof JWT]
+    G --> H[Enviar Proof (registerProof)]
+    H --> I[Recibir Credencial (JWT)]
+    I --> J[Cifrar y Guardar (RSA+AES)]
+    J --> K[Mostrar Payload Descifrado]
 ```
-App startup
-  └─ SecureCredentialsApp.onCreate()
-       ├─ setupBouncyCastle()   ← reemplaza el BC recortado de Android por el completo (secp256k1)
-       └─ DIDKeyManager.generateKeysIfNeeded()
 
-Pantalla Home
-  ├─ [Identidad DID]  → DidScreen
-  │     ├─ Genera par secp256k1 (clave privada cifrada con AES-GCM en prefs)
-  │     ├─ Deriva did:key:z... (multicodec 0xe7,0x01 + pubkey comprimido + base58btc)
-  │     └─ Solicita nonce al backend → firma Proof JWT (ES256K, RFC 6979)
-  │
-  └─ [RSA Cifrado]    → RsaScreen
-        ├─ Genera par RSA-2048 en Android Keystore (StrongBox → TEE → Software)
-        ├─ Cifra JSON: RSA-OAEP encripta clave AES efímera → AES-GCM cifra el payload
-        └─ Descifra y muestra el JSON original
-```
+### Detalle del flujo DID
+
+1.  **Generar DID**: Se crea un par de claves `secp256k1`. La privada se cifra con AES-GCM (clave en Keystore).
+2.  **Registrar DID**: Se envía el DID y el email al backend (`/dids/register`).
+3.  **Solicitar Nonce**: Se pide un desafío criptográfico (`/credentials/nonce`).
+4.  **Proof JWT**: Se firma el nonce con la clave privada `secp256k1` (algoritmo ES256K).
+5.  **Obtener Credencial**: Se envía el JWT (`/credentials/issue`) y se recibe una Verifiable Credential (VC).
+6.  **Almacenamiento Seguro**: La VC se cifra automáticamente usando el módulo RSA y se guarda en `SharedPreferences`.
 
 ---
 
@@ -75,7 +81,7 @@ app/src/main/java/.../
 │
 ├── crypto/
 │   ├── CryptoManager.kt             # RSA-2048 + AES-256-GCM para cifrado de VCs
-│   ├── KeystoreHelper.kt            # Abstracción StrongBox → TEE → Software
+│   ├── KeystoreHelper.kt            # Lógica compartida: StrongBox/TEE y niveles de seguridad
 │   └── SecurityLevel.kt             # Enum: STRONGBOX / TEE / SOFTWARE / UNKNOWN
 │
 ├── did/
@@ -83,26 +89,23 @@ app/src/main/java/.../
 │   └── ProofJWTBuilder.kt           # Construye el JWT de prueba (header+payload+firma)
 │
 ├── data/
-│   ├── model/                       # VerifiableCredential, NonceResponse
+│   ├── model/                       # Modelos de datos (Request/Response)
 │   ├── network/
-│   │   ├── CredentialApi.kt         # Retrofit: GET /credentials/nonce?holder_did=...
-│   │   └── NetworkClient.kt         # OkHttp + timeouts + logging condicional
+│   │   ├── CredentialApi.kt         # Retrofit: Endpoints para DID y Credenciales
+│   │   └── NetworkClient.kt         # OkHttp + timeouts + logging
 │   └── repository/CredentialRepository.kt
 │
 ├── storage/CredentialStore.kt       # SharedPreferences cifradas: guarda el payload AES-GCM
 │
 └── ui/
     ├── navigation/AppNavigation.kt  # NavHost: HOME → DID → RSA
-    ├── screens/
-    │   ├── HomeScreen.kt            # Menú principal con 2 botones
-    │   ├── DidScreen.kt             # Pantalla de identidad DID + Proof JWT
-    │   └── RsaScreen.kt             # Pantalla de cifrado RSA + credencial VC
-    ├── components/                  # Composables reutilizables (SharedComponents, secciones)
+    ├── screens/                     # Pantallas (Home, Did, Rsa)
+    ├── components/                  # Composables reutilizables (StatusBar, Sections, Tabs)
     ├── viewmodel/
-    │   ├── CredentialViewModel.kt         # Estado central + launchCrypto()
-    │   ├── CredentialViewModelDid.kt      # Extension: generateDIDKeys, deleteDIDKeys
-    │   ├── CredentialViewModelRsa.kt      # Extension: generateRsaKeys, encrypt, decrypt
-    │   └── CredentialViewModelNetwork.kt  # Extension: requestCredentialWithNonce, fetchAndEncrypt
+    │   ├── CredentialViewModel.kt         # Estado central
+    │   ├── CredentialViewModelDid.kt      # Lógica DID
+    │   ├── CredentialViewModelRsa.kt      # Lógica RSA y Cifrado (validación inteligente)
+    │   └── CredentialViewModelNetwork.kt  # Lógica de Red (flujo completo)
     └── CredentialUiState.kt         # Estado inmutable de la UI
 ```
 
@@ -110,55 +113,37 @@ app/src/main/java/.../
 
 ## Seguridad — consideraciones importantes
 
-### Claves DID (secp256k1)
+### Claves DID (secp256k1 - 256 bits)
 
-- La clave privada **nunca sale del dispositivo en texto plano**
-- Se cifra con `AES-256-GCM` usando una `SecretKey` del Android Keystore como wrap key
-- Se borra de RAM con `fill(0)` inmediatamente después de usarse para firmar
-- La clave pública comprimida (33 bytes) se guarda en `SharedPreferences` en hex
+- **Por qué 256 bits?**: ECC (Curva Elíptica) es más eficiente. 256 bits en ECC equivalen a ~3072 bits en RSA.
+- La clave privada **nunca sale del dispositivo en texto plano**.
+- Se cifra con `AES-256-GCM` usando una `SecretKey` del Android Keystore como wrap key.
+- Se borra de RAM con `fill(0)` inmediatamente después de usarse.
 
 ### Cifrado de VCs (RSA-2048)
 
-- Esquema **híbrido**: RSA-OAEP cifra una clave AES efímera → AES-GCM cifra el payload
-- Preferencia de hardware: **StrongBox** > TEE > Software (fallback automático)
-- El nivel de seguridad real se muestra en la UI (🔒 StrongBox / 🛡 TEE / ⚠️ Software)
+- **Por qué 2048 bits?**: Es el estándar mínimo seguro para RSA hoy en día.
+- Esquema **híbrido**: RSA-OAEP cifra una clave AES efímera → AES-GCM cifra el payload.
+- **Validación Inteligente**: El sistema detecta si el input es un JSON o un JWT antes de cifrar.
 
 ### BouncyCastle en Android
 
-Android incluye un `BC` provider recortado sin `secp256k1`. La app lo reemplaza al inicio:
-
-```kotlin
-Security.removeProvider("BC")
-Security.addProvider(BouncyCastleProvider())
-```
-
-Esto se hace en `SecureCredentialsApp.onCreate()`, una sola vez, antes de cualquier operación criptográfica.
+Android incluye un `BC` provider recortado. La app lo reemplaza al inicio para soportar `secp256k1` correctamente.
 
 ### URL del backend
 
-La `BASE_URL` **no debe subirse al repositorio**. Usa `local.properties` (ya en `.gitignore`) o variables de entorno en CI/CD.
+La `BASE_URL` se maneja vía `local.properties` para no exponerla en el repositorio.
 
 ---
 
-## Endpoint del backend
+## Endpoints del backend
 
-| Método | Ruta                 | Parámetro            | Descripción                                        |
-| ------ | -------------------- | -------------------- | -------------------------------------------------- |
-| `GET`  | `/credentials/nonce` | `holder_did` (query) | Devuelve un nonce de un solo uso para el Proof JWT |
-
-### Ejemplo de Proof JWT generado
-
-El JWT tiene 3 partes separadas por `.`. La sección **Payload (Decoded)** de la app muestra el JSON descifrado:
-
-```json
-{
-	"iss": "did:key:zQ3sh...",
-	"aud": "https://tu-backend/",
-	"nonce": "abc123",
-	"iat": 1741223400,
-	"type": "VerifiableCredential"
-}
-```
+| Método | Ruta                  | Descripción                                      |
+| ------ | --------------------- | ------------------------------------------------ |
+| `POST` | `/dids/register`      | Registra el DID y el Client ID (email)           |
+| `GET`  | `/credentials/nonce`  | Obtiene un nonce vinculado al DID                |
+| `POST` | `/credentials/issue`  | Envía el Proof JWT y recibe la Credencial (JWT)  |
+| `GET`  | `/credentials/{id}`   | Descarga una credencial específica (Legacy flow) |
 
 ---
 
@@ -166,12 +151,12 @@ El JWT tiene 3 partes separadas por `.`. La sección **Payload (Decoded)** de la
 
 | Librería                     | Uso                                         |
 | ---------------------------- | ------------------------------------------- |
-| Jetpack Compose + Navigation | UI declarativa y navegación entre pantallas |
-| Android Keystore             | Almacenamiento seguro de claves RSA y AES   |
-| BouncyCastle 1.83            | secp256k1, ECDSA (ES256K), SHA-256          |
-| Retrofit 3 + OkHttp 5        | Cliente HTTP para el backend                |
-| Kotlin Serialization         | Serialización JSON                          |
-| AndroidViewModel + StateFlow | Arquitectura MVVM sin memory leaks          |
+| **Jetpack Compose**          | UI declarativa moderna                      |
+| **Android Keystore**         | Almacenamiento seguro respaldado por hardware |
+| **BouncyCastle**             | Criptografía avanzada (secp256k1, ES256K)   |
+| **Retrofit + OkHttp**        | Networking robusto con timeouts             |
+| **Kotlin Serialization**     | Parseo JSON eficiente                       |
+| **Coroutines + Flow**        | Manejo asíncrono y estado reactivo          |
 
 ---
 
