@@ -6,17 +6,17 @@ Demo Android que implementa **Decentralized Identifiers (did:key)** sin blockcha
 
 ## ¿Qué hace la app?
 
-| Módulo            | Qué hace                                                                                            |
-| ----------------- | --------------------------------------------------------------------------------------------------- |
+| Módulo            | Qué hace                                                                                                |
+|-------------------|---------------------------------------------------------------------------------------------------------|
 | **Identidad DID** | Genera claves `secp256k1`, registra el DID, solicita un nonce y firma un Proof JWT para obtener una VC. |
-| **RSA Cifrado**   | Cifra credenciales (JSON o JWT) con `AES-256-GCM + RSA-2048 OAEP` usando el Android Keystore.       |
+| **RSA Cifrado**   | Cifra credenciales (JSON o JWT) con `AES-256-GCM + RSA-2048 OAEP` usando el Android Keystore.           |
 
 ---
 
 ## Requisitos
 
 | Herramienta           | Versión          | Motivo                                                                                  |
-| --------------------- | ---------------- | --------------------------------------------------------------------------------------- |
+|-----------------------|------------------|-----------------------------------------------------------------------------------------|
 | **Android Studio**    | Meerkat 2024.3   | Versión mínima compatible con AGP 9.1                                                   |
 | **JDK**               | 21               | Aprovecha virtual threads, records y mejoras de rendimiento en la JVM con Kotlin        |
 | **Gradle**            | 9.3.1            | Wrapper incluido en el repo — no requiere instalación manual                            |
@@ -50,15 +50,15 @@ BASE_URL=https://tu-backend.com/
 ```mermaid
 graph TD
     A[Inicio App] --> B{Claves DID existen?}
-    B -- No --> C[Generar par secp256k1]
+    B -- No --> C["Generar par secp256k1"]
     B -- Sí --> D[Pantalla DID]
     
     D --> E[Registrar DID]
     E --> F[Solicitar Nonce]
     F --> G[Generar Proof JWT]
     G --> H["Enviar Proof (registerProof)"]
-    H --> I[Recibir Credencial (JWT)]
-    I --> J[Cifrar y Guardar (RSA+AES)]
+    H --> I["Recibir Credencial (JWT)"]
+    I --> J["Cifrar y Guardar (RSA+AES)"]
     J --> K[Mostrar Payload Descifrado]
 ```
 
@@ -138,25 +138,25 @@ La `BASE_URL` se maneja vía `local.properties` para no exponerla en el reposito
 
 ## Endpoints del backend
 
-| Método | Ruta                  | Descripción                                      |
-| ------ | --------------------- | ------------------------------------------------ |
-| `POST` | `/dids/register`      | Registra el DID y el Client ID (email)           |
-| `GET`  | `/credentials/nonce`  | Obtiene un nonce vinculado al DID                |
-| `POST` | `/credentials/issue`  | Envía el Proof JWT y recibe la Credencial (JWT)  |
-| `GET`  | `/credentials/{id}`   | Descarga una credencial específica (Legacy flow) |
+| Método | Ruta                 | Descripción                                      |
+|--------|----------------------|--------------------------------------------------|
+| `POST` | `/dids/register`     | Registra el DID y el Client ID (email)           |
+| `GET`  | `/credentials/nonce` | Obtiene un nonce vinculado al DID                |
+| `POST` | `/credentials/issue` | Envía el Proof JWT y recibe la Credencial (JWT)  |
+| `GET`  | `/credentials/{id}`  | Descarga una credencial específica (Legacy flow) |
 
 ---
 
 ## Stack tecnológico
 
-| Librería                     | Uso                                         |
-| ---------------------------- | ------------------------------------------- |
-| **Jetpack Compose**          | UI declarativa moderna                      |
-| **Android Keystore**         | Almacenamiento seguro respaldado por hardware |
-| **BouncyCastle**             | Criptografía avanzada (secp256k1, ES256K)   |
-| **Retrofit + OkHttp**        | Networking robusto con timeouts             |
-| **Kotlin Serialization**     | Parseo JSON eficiente                       |
-| **Coroutines + Flow**        | Manejo asíncrono y estado reactivo          |
+| Librería                 | Uso                                           |
+|--------------------------|-----------------------------------------------|
+| **Jetpack Compose**      | UI declarativa moderna                        |
+| **Android Keystore**     | Almacenamiento seguro respaldado por hardware |
+| **BouncyCastle**         | Criptografía avanzada (secp256k1, ES256K)     |
+| **Retrofit + OkHttp**    | Networking robusto con timeouts               |
+| **Kotlin Serialization** | Parseo JSON eficiente                         |
+| **Coroutines + Flow**    | Manejo asíncrono y estado reactivo            |
 
 ---
 
