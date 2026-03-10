@@ -56,7 +56,7 @@ graph TD
     D --> E[Registrar DID]
     E --> F[Solicitar Nonce]
     F --> G[Generar Proof JWT]
-    G --> H[Enviar Proof (registerProof)]
+    G --> H["Enviar Proof (registerProof)"]
     H --> I[Recibir Credencial (JWT)]
     I --> J[Cifrar y Guardar (RSA+AES)]
     J --> K[Mostrar Payload Descifrado]
