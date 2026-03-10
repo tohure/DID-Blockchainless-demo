@@ -34,16 +34,40 @@ import dev.tohure.didblockchainlessdemo.ui.components.DidSection
 import dev.tohure.didblockchainlessdemo.ui.components.ProofJwtSection
 import dev.tohure.didblockchainlessdemo.ui.components.StatusBar
 import dev.tohure.didblockchainlessdemo.ui.components.VpSection
+import dev.tohure.didblockchainlessdemo.ui.viewmodel.DidUiState
 import dev.tohure.didblockchainlessdemo.ui.viewmodel.DidViewModel
+
+@Composable
+fun DidScreen(
+    viewModel: DidViewModel = viewModel(),
+    onBack: () -> Unit,
+) {
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+
+    DidContent(
+        state = state,
+        onBack = onBack,
+        onGenerateKeys = viewModel::generateDIDKeys,
+        onDeleteKeys = viewModel::deleteDIDKeys,
+        onRequestCredential = { viewModel.requestCredentialWithNonce() },
+        onClearProofJwt = viewModel::clearProofJwt,
+        onClearMetadata = viewModel::clearDecryptedMetadata,
+        onValidatePresentation = { viewModel.validateVP() }
+    )
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DidScreen(
-    vm: DidViewModel = viewModel(),
+fun DidContent(
+    state: DidUiState,
     onBack: () -> Unit,
+    onGenerateKeys: () -> Unit,
+    onDeleteKeys: () -> Unit,
+    onRequestCredential: () -> Unit,
+    onClearProofJwt: () -> Unit,
+    onClearMetadata: () -> Unit,
+    onValidatePresentation: () -> Unit
 ) {
-    val state by vm.uiState.collectAsStateWithLifecycle()
-
     Scaffold(
         topBar = {
             TopAppBar(
@@ -98,24 +122,24 @@ fun DidScreen(
 
             DidSection(
                 state = state,
-                onGenerate = vm::generateDIDKeys,
-                onDelete = vm::deleteDIDKeys
+                onGenerate = onGenerateKeys,
+                onDelete = onDeleteKeys
             )
 
             ProofJwtSection(
                 state = state,
-                onRequest = { vm.requestCredentialWithNonce() },
-                onClear = vm::clearProofJwt
+                onRequest = onRequestCredential,
+                onClear = onClearProofJwt
             )
 
             CredentialResultSection(
                 state = state,
-                onClear = vm::clearDecryptedMetadata
+                onClear = onClearMetadata
             )
 
             VpSection(
                 state = state,
-                onVerify = { vm.validatePresentation() }
+                onVerify = onValidatePresentation
             )
 
             Spacer(Modifier.height(24.dp))

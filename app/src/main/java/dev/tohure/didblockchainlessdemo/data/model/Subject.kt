@@ -1,6 +1,5 @@
 package dev.tohure.didblockchainlessdemo.data.model
 
-
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -20,6 +19,8 @@ import kotlinx.serialization.Serializable
  */
 @Serializable
 data class Subject(
+    @SerialName("id")
+    val id: String,
     @SerialName("email")
     val email: String,
     @SerialName("familyName")

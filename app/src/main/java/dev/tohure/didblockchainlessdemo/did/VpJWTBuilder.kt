@@ -1,11 +1,11 @@
 package dev.tohure.didblockchainlessdemo.did
 
+import dev.tohure.didblockchainlessdemo.utils.toBase64Url
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.add
 import java.time.Instant
-import java.util.Base64
 
 /**
  * Construye un Verifiable Presentation (VP) en formato JWT.
@@ -13,7 +13,7 @@ import java.util.Base64
  * El JWT resultante contiene un claim `vp` que a su vez contiene la credencial
  * verificable que se quiere presentar.
  */
-class VpJwtBuilder(private val didKeyManager: DIDKeyManager) {
+class VpJWTBuilder(private val didKeyManager: DIDKeyManager) {
 
     fun build(
         verifiableCredentialJwt: String,
@@ -43,15 +43,11 @@ class VpJwtBuilder(private val didKeyManager: DIDKeyManager) {
 
         val headerB64 = header.toString().encodeToByteArray().toBase64Url()
         val payloadB64 = payload.toString().encodeToByteArray().toBase64Url()
-        val signingInput = "$headerB64.$payloadB64".encodeToByteArray()
+        val signingInput = "$headerB64.$payloadB64"
         
-        val signature = didKeyManager.sign(signingInput).getOrThrow()
+        val signature = didKeyManager.sign(signingInput.encodeToByteArray()).getOrThrow()
         val signatureB64 = signature.toBase64Url()
 
         return "$headerB64.$payloadB64.$signatureB64"
     }
-}
-
-private fun ByteArray.toBase64Url(): String {
-    return Base64.getUrlEncoder().withoutPadding().encodeToString(this)
 }

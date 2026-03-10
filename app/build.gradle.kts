@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlinx.serialization)
+    alias(libs.plugins.stability.analyzer)
 }
 
 val localProperties = Properties().apply {
@@ -11,7 +12,6 @@ val localProperties = Properties().apply {
     if (file.exists()) file.inputStream().use { load(it) }
 }
 
-/** Lee una propiedad de local.properties; falla en tiempo de compilación si falta. */
 fun localProp(key: String): String = localProperties.getProperty(key)
     ?: error("Falta '$key' en local.properties. Añádela antes de compilar.")
 
@@ -65,19 +65,17 @@ dependencies {
 
     // ── Compose BOM ──────────────────────────────────────────────────
     implementation(platform(libs.androidx.compose.bom))
+    implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
 
     // ── Activity, ViewModel & Lifecycle ──────────────────────────────
-    implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.process)
-
-    // ── Navigation ───────────────────────────────────────────────────
-    implementation(libs.navigation.compose)
 
     // ── Networking ───────────────────────────────────────────────────
     implementation(libs.retrofit.core)

@@ -5,16 +5,16 @@ import kotlinx.serialization.Serializable
 
 /**
 {
-"valid": true,
-"holder_did": "did:key:zQ3sh...",
-"credentials": [
-{
-"credential_id": "urn:uuid:...",
-"type": "UniversityDegreeCredential",
-"subject": { "givenName": "Ana", "familyName": "García", "email": "ana@example.com" },
-"expires_at": "2027-..."
-}
-]
+"credential_id":"urn:uuid:55e80395-b4ad-468b-92ee-d65dcbc71cd7",
+"credential_type":"UniversityDegreeCredential",
+"subject":{
+"id":"did:key:zQ3shtsqCASKiQnhtTVpYax7XWPHDtDfdsAJF1xhJa5nE3Rqr",
+"givenName":"Juan",
+"familyName":"Perez",
+"email":"juan@example.com"
+},
+"expires_at":"2026-03-11T21:30:59Z",
+"revoked":false
 }
  */
 @Serializable
@@ -25,6 +25,8 @@ data class Credential(
     val expiresAt: String,
     @SerialName("subject")
     val subject: Subject,
-    @SerialName("type")
-    val type: String
+    @SerialName("credential_type")
+    val credentialType: String,
+    @SerialName("revoked")
+    val revoked: Boolean,
 )

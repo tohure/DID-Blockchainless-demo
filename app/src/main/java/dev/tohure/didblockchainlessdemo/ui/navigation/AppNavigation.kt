@@ -35,8 +35,8 @@ fun AppNavHost(
             )
         }
         composable(Screen.DID.name) {
-            val vm: DidViewModel = viewModel()
-            DidScreen(vm = vm, onBack = { navController.popBackStack() })
+            val didViewModel: DidViewModel = viewModel()
+            DidScreen(viewModel = didViewModel, onBack = { navController.popBackStack() })
         }
         composable(Screen.RSA.name) {
             val vm: RsaViewModel = viewModel()

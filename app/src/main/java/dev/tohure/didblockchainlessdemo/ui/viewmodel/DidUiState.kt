@@ -16,6 +16,9 @@ data class DidUiState(
     val encryptedCredential: String = "", // Payload cifrado (AES-GCM)
     val decryptedMetadata: String = "",   // JSON de metadatos (para mostrar)
 
+    // ── Validación ───────────────────────────────────────────────────
+    val validationResponseJson: String = "",
+
     // ── Estado general ───────────────────────────────────────────────
     val statusMessage: String = "",
     val isLoading: Boolean = false

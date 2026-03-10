@@ -9,7 +9,7 @@ import dev.tohure.didblockchainlessdemo.crypto.SecurityLevel
 import dev.tohure.didblockchainlessdemo.data.repository.CredentialRepository
 import dev.tohure.didblockchainlessdemo.did.DIDKeyManager
 import dev.tohure.didblockchainlessdemo.did.ProofJWTBuilder
-import dev.tohure.didblockchainlessdemo.did.VpJwtBuilder
+import dev.tohure.didblockchainlessdemo.did.VpJWTBuilder
 import dev.tohure.didblockchainlessdemo.storage.CredentialStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,7 +17,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
 class DidViewModel(application: Application) : AndroidViewModel(application) {
@@ -25,7 +24,7 @@ class DidViewModel(application: Application) : AndroidViewModel(application) {
     private val didKeyManager = DIDKeyManager(application)
     private val repository = CredentialRepository()
     private val proofBuilder = ProofJWTBuilder(didKeyManager)
-    private val vpBuilder = VpJwtBuilder(didKeyManager)
+    private val vpBuilder = VpJWTBuilder(didKeyManager)
     
     // Dependencias para guardar la credencial recibida
     private val crypto = CryptoManager()
@@ -134,8 +133,8 @@ class DidViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun validatePresentation() = launch {
-        _uiState.update { it.copy(isLoading = true, statusMessage = "Verificando presentación...") }
+    fun validateVP() = launch {
+        _uiState.update { it.copy(isLoading = true, statusMessage = "Verificando VP...") }
 
         runCatching {
             check(crypto.keyPairExists()) { "No hay claves RSA" }
@@ -147,10 +146,15 @@ class DidViewModel(application: Application) : AndroidViewModel(application) {
             repository.validateCredentials(vpJwt).getOrThrow()
         }.onSuccess { response ->
             val status = if (response.valid) "VP Válida" else "VP Inválida"
+            
+            val json = Json { prettyPrint = true }
+            val responseJson = json.encodeToString(response)
+            
             _uiState.update {
                 it.copy(
                     isLoading = false,
                     statusMessage = "Verificación: $status. Holder: ${response.holderDid}",
+                    validationResponseJson = responseJson
                 )
             }
         }.onFailure { e ->
