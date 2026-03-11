@@ -27,23 +27,22 @@ internal object KeystoreHelper {
     }
 
     /**
-     * Ejecuta [strongBoxBlock] (requiere API 28+).
-     * Si StrongBox no está disponible, cae automáticamente a [fallbackBlock].
+     * Intenta ejecutar [block] con StrongBox activado (requiere API 28+).
+     * Si StrongBox no está disponible, lo reintenta con `isStrongBox = false` (TEE).
+     * CONSIDERAR QUE EN PRODUCCIÓN ESTO SIEMPRE DEBERÍA SER FORZADO A TRUE
      *
+     * @param block Lambda que recibe `isStrongBox: Boolean` como parámetro.
      * @return el resultado del bloque que pudo ejecutarse.
      */
-    fun <T> withBestSecurity(
-        strongBoxBlock: () -> T,
-        fallbackBlock: () -> T,
-    ): T {
+    fun <T> withBestSecurity(block: (isStrongBox: Boolean) -> T): T {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             try {
-                return strongBoxBlock()
+                return block(true)
             } catch (e: StrongBoxUnavailableException) {
                 AppLogger.w(TAG, "StrongBox no disponible, usando TEE: ${e.message}", e)
             }
         }
-        return fallbackBlock()
+        return block(false)
     }
 
     /**

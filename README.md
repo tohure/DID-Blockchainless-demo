@@ -176,6 +176,11 @@ La aplicación cuenta con un logging centralizado (`AppLogger`) que solo activa 
 - Se cifra con `AES-256-GCM` usando una `SecretKey` del Android Keystore como wrap key.
 - Se borra de RAM con `fill(0)` inmediatamente después de usarse.
 
+> [!CAUTION]
+> `KeystoreHelper.withBestSecurity()` hace fallback a TEE si StrongBox no está disponible.
+> En producción se recomienda **forzar StrongBox** y rechazar la instalación en dispositivos que no lo soporten,
+> ya que TEE comparte recursos con el sistema operativo y ofrece menor aislamiento.
+
 ### Cifrado de VCs (RSA-2048)
 
 - **Por qué 2048 bits?**: Es el estándar mínimo seguro para RSA hoy en día.

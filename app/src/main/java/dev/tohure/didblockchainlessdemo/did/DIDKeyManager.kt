@@ -157,13 +157,10 @@ class DIDKeyManager(context: Context) {
         val ks = KeystoreHelper.keyStore
         if (!ks.containsAlias(WRAP_KEY_ALIAS)) {
             val kg = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, KeystoreHelper.KEYSTORE_PROVIDER)
-            KeystoreHelper.withBestSecurity(strongBoxBlock = {
-                kg.init(buildWrapKeySpec(strongBox = true))
+            KeystoreHelper.withBestSecurity { isStrongBox ->
+                kg.init(buildWrapKeySpec(strongBox = isStrongBox))
                 kg.generateKey()
-            }, fallbackBlock = {
-                kg.init(buildWrapKeySpec(strongBox = false))
-                kg.generateKey()
-            })
+            }
         }
         return ks.getKey(WRAP_KEY_ALIAS, null) as SecretKey
     }
