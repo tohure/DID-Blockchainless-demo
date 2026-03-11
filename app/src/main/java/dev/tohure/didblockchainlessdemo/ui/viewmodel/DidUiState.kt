@@ -21,5 +21,6 @@ data class DidUiState(
 
     // ── Estado general ───────────────────────────────────────────────
     val statusMessage: String = "",
-    val isLoading: Boolean = false
+    val isLoading: Boolean = false,
+    val showBiometricPrompt: Boolean = false
 )

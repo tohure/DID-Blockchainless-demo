@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.tohure.didblockchainlessdemo.R
+import dev.tohure.didblockchainlessdemo.ui.components.BiometricPromptHandler
 import dev.tohure.didblockchainlessdemo.ui.components.CredentialSection
 import dev.tohure.didblockchainlessdemo.ui.components.DecryptedJsonSection
 import dev.tohure.didblockchainlessdemo.ui.components.EncryptedPayloadSection
@@ -43,6 +44,15 @@ fun RsaScreen(
     onBack: () -> Unit,
 ) {
     val state by vm.uiState.collectAsStateWithLifecycle()
+
+    if (state.showBiometricPrompt) {
+        BiometricPromptHandler(
+            showPrompt = true,
+            onSuccess = vm::onBiometricSuccess,
+            onFailure = vm::onBiometricFailure,
+            onDismiss = vm::onBiometricPromptDismissed
+        )
+    }
 
     Scaffold(
         topBar = {
