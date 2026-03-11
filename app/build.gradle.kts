@@ -62,6 +62,10 @@ dependencies {
     // ── Core ─────────────────────────────────────────────────────────
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.androidx.lifecycle.runtime.compose)
+    implementation(libs.androidx.lifecycle.process)
+    implementation(libs.androidx.biometric)
 
     // ── Compose BOM ──────────────────────────────────────────────────
     implementation(platform(libs.androidx.compose.bom))
@@ -71,14 +75,6 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
-
-    // ── Activity, ViewModel & Lifecycle ──────────────────────────────
-    implementation(libs.androidx.lifecycle.viewmodel.compose)
-    implementation(libs.androidx.lifecycle.runtime.compose)
-    implementation(libs.androidx.lifecycle.process)
-    
-    // ── Biometric ────────────────────────────────────────────────────
-    implementation(libs.androidx.biometric)
 
     // ── Networking ───────────────────────────────────────────────────
     implementation(libs.retrofit.core)

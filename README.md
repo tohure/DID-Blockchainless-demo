@@ -43,18 +43,24 @@ BASE_URL=https://tu-backend.com/
 
 ```mermaid
 graph TD
-    A[Inicio App] --> B{Claves DID existen?}
-    B -- No --> C["Generar par secp256k1"]
-    B -- Sí --> D[Pantalla DID]
+    A[Inicio App] --> B{¿Claves RSA/AES existen?}
+    B --> |Sí| C{¿Claves DID existen?}
+    B ---->|No| D["Pantalla RSA/AES"]
+    D --> E@{ shape: subproc, label: "Generar par RSA-2048/AES-256" }
+    E --> B
     
-    D --> E[Registrar DID]
-    E --> F[Solicitar Nonce]
-    F --> G[Generar Proof JWT]
-    G --> H["Enviar Proof (registerProof)"]
-    H --> I["Recibir Credencial (VC JWT)"]
-    I --> J["Cifrar y Guardar (RSA+AES)"]
-    J --> K["Generar VP JWT"]
-    K --> L["Validar VP en Backend"]
+    C --> |Sí| F[Pantalla DID]
+    C --> |No| G@{shape: subproc, label: "Generar en el widget primero"}
+    G --> |Reintentar| C
+    
+    F --> H[Registrar DID]
+    H --> I[Solicitar Nonce]
+    I --> J[Generar Proof JWT]
+    J --> K["Enviar Proof (registerProof)"]
+    K --> L["Recibir Credencial (VC JWT)"]
+    L --> M["Cifrar y Guardar (RSA+AES)"]
+    M --> N["Generar VP JWT"]
+    N --> O["Validar VP en Backend"]
 ```
 
 ### Detalle del flujo DID
