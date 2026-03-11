@@ -76,6 +76,9 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.process)
+    
+    // ── Biometric ────────────────────────────────────────────────────
+    implementation(libs.androidx.biometric)
 
     // ── Networking ───────────────────────────────────────────────────
     implementation(libs.retrofit.core)

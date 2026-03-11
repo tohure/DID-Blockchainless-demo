@@ -1,6 +1,8 @@
 package dev.tohure.didblockchainlessdemo.ui.viewmodel
 
 import android.app.Application
+import android.security.keystore.KeyPermanentlyInvalidatedException
+import android.security.keystore.UserNotAuthenticatedException
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import dev.tohure.didblockchainlessdemo.crypto.CryptoManager
@@ -24,6 +26,8 @@ class RsaViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _uiState = MutableStateFlow(RsaUiState())
     val uiState: StateFlow<RsaUiState> = _uiState.asStateFlow()
+    
+    private var pendingAction: (suspend () -> Unit)? = null
 
     init {
         refreshKeyStatus()
@@ -121,6 +125,23 @@ class RsaViewModel(application: Application) : AndroidViewModel(application) {
         store.save(CREDENTIAL_ID, payload)
         return payload
     }
+    
+    fun onBiometricSuccess() {
+        _uiState.update { it.copy(showBiometricPrompt = false) }
+        pendingAction?.let { action ->
+            pendingAction = null
+            launch(action)
+        }
+    }
+
+    fun onBiometricFailure() {
+        _uiState.update { it.copy(showBiometricPrompt = false, isLoading = false, statusMessage = "Autenticación biométrica fallida") }
+        pendingAction = null
+    }
+    
+    fun onBiometricPromptDismissed() {
+        _uiState.update { it.copy(showBiometricPrompt = false, isLoading = false) }
+    }
 
     private fun refreshKeyStatus() {
         launch {
@@ -143,8 +164,28 @@ class RsaViewModel(application: Application) : AndroidViewModel(application) {
             _uiState.update { it.copy(isLoading = true) }
             runCatching { block() }
                 .onFailure { e ->
-                    AppLogger.e("rsa-vm", "Error en launch: ${e.message}", e)
-                    _uiState.update { it.copy(isLoading = false, statusMessage = "Error: ${e.message}") }
+                    val cause = e.cause
+                    // LOG EXTRA PARA DEPURACIÓN
+                    AppLogger.d("rsa-vm", "Exception caught in launch: $e, Cause: $cause")
+                    
+                    if (e is KeyPermanentlyInvalidatedException || cause is KeyPermanentlyInvalidatedException) {
+                        AppLogger.e("rsa-vm", "Clave invalidada permanentemente por cambios biométricos")
+                        _uiState.update { 
+                            it.copy(
+                                isLoading = false, 
+                                statusMessage = "Claves invalidadas. Se detectaron cambios biométricos. Por favor, regenera las claves."
+                            ) 
+                        }
+                        pendingAction = null
+                        
+                    } else if (e is UserNotAuthenticatedException || cause is UserNotAuthenticatedException) {
+                        AppLogger.w("rsa-vm", "Se requiere autenticación biométrica")
+                        pendingAction = block
+                        _uiState.update { it.copy(isLoading = false, showBiometricPrompt = true) }
+                    } else {
+                        AppLogger.e("rsa-vm", "Error en launch: ${e.message}", e)
+                        _uiState.update { it.copy(isLoading = false, statusMessage = "Error: ${e.message}") }
+                    }
                 }
                 .onSuccess {
                     _uiState.update { it.copy(isLoading = false) }

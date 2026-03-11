@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.tohure.didblockchainlessdemo.R
+import dev.tohure.didblockchainlessdemo.ui.components.BiometricPromptHandler
 import dev.tohure.didblockchainlessdemo.ui.components.CredentialResultSection
 import dev.tohure.didblockchainlessdemo.ui.components.DidSection
 import dev.tohure.didblockchainlessdemo.ui.components.ProofJwtSection
@@ -43,6 +44,15 @@ fun DidScreen(
     onBack: () -> Unit,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+
+    if (state.showBiometricPrompt) {
+        BiometricPromptHandler(
+            showPrompt = true,
+            onSuccess = viewModel::onBiometricSuccess,
+            onFailure = viewModel::onBiometricFailure,
+            onDismiss = viewModel::onBiometricPromptDismissed
+        )
+    }
 
     DidContent(
         state = state,
