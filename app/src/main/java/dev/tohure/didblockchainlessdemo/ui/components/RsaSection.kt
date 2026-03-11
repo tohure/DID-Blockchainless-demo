@@ -10,11 +10,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import dev.tohure.didblockchainlessdemo.R
-import dev.tohure.didblockchainlessdemo.ui.viewmodel.CredentialUiState
+import dev.tohure.didblockchainlessdemo.ui.viewmodel.RsaUiState
 
 @Composable
 fun RsaSection(
-    state: CredentialUiState,
+    state: RsaUiState,
     onGenerate: () -> Unit,
     onDelete: () -> Unit
 ) {

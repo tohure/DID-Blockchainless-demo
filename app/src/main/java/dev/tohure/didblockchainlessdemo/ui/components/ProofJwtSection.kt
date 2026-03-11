@@ -40,13 +40,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.tohure.didblockchainlessdemo.R
-import dev.tohure.didblockchainlessdemo.ui.viewmodel.CredentialUiState
+import dev.tohure.didblockchainlessdemo.ui.viewmodel.DidUiState
 import org.json.JSONObject
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProofJwtSection(
-    state: CredentialUiState,
+    state: DidUiState,
     onRequest: () -> Unit,
     onClear: () -> Unit
 ) {
@@ -60,7 +60,7 @@ fun ProofJwtSection(
         ActionButton(
             text = "Solicitar nonce y firmar",
             icon = R.drawable.key,
-            enabled = !state.isLoading && !state.isFetching && state.didKeysExist,
+            enabled = !state.isLoading && state.didKeysExist,
             modifier = Modifier.fillMaxWidth(),
             onClick = onRequest
         )

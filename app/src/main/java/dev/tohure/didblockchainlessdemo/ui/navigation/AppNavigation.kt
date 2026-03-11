@@ -11,18 +11,22 @@ import androidx.navigation.compose.rememberNavController
 import dev.tohure.didblockchainlessdemo.ui.screens.DidScreen
 import dev.tohure.didblockchainlessdemo.ui.screens.HomeScreen
 import dev.tohure.didblockchainlessdemo.ui.screens.RsaScreen
-import dev.tohure.didblockchainlessdemo.ui.viewmodel.CredentialViewModel
+import dev.tohure.didblockchainlessdemo.ui.viewmodel.DidViewModel
+import dev.tohure.didblockchainlessdemo.ui.viewmodel.RsaViewModel
 
 enum class Screen { HOME, DID, RSA }
 
 @Composable
 fun AppNavHost(
     navController: NavHostController = rememberNavController(),
-    vm: CredentialViewModel = viewModel(),
 ) {
     NavHost(
         navController = navController,
         startDestination = Screen.HOME.name,
+        enterTransition = { EnterTransition.None },
+        exitTransition = { ExitTransition.None },
+        popEnterTransition = { EnterTransition.None },
+        popExitTransition = { ExitTransition.None }
     ) {
         composable(Screen.HOME.name) {
             HomeScreen(
@@ -31,9 +35,11 @@ fun AppNavHost(
             )
         }
         composable(Screen.DID.name) {
-            DidScreen(vm = vm, onBack = { navController.popBackStack() })
+            val didViewModel: DidViewModel = viewModel()
+            DidScreen(viewModel = didViewModel, onBack = { navController.popBackStack() })
         }
         composable(Screen.RSA.name) {
+            val vm: RsaViewModel = viewModel()
             RsaScreen(vm = vm, onBack = { navController.popBackStack() })
         }
     }

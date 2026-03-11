@@ -27,23 +27,47 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.tohure.didblockchainlessdemo.R
+import dev.tohure.didblockchainlessdemo.ui.components.CredentialResultSection
 import dev.tohure.didblockchainlessdemo.ui.components.DidSection
 import dev.tohure.didblockchainlessdemo.ui.components.ProofJwtSection
 import dev.tohure.didblockchainlessdemo.ui.components.StatusBar
-import dev.tohure.didblockchainlessdemo.ui.viewmodel.CredentialViewModel
-import dev.tohure.didblockchainlessdemo.ui.viewmodel.deleteDIDKeys
-import dev.tohure.didblockchainlessdemo.ui.viewmodel.generateDIDKeys
-import dev.tohure.didblockchainlessdemo.ui.viewmodel.requestCredentialWithNonce
+import dev.tohure.didblockchainlessdemo.ui.components.VpSection
+import dev.tohure.didblockchainlessdemo.ui.viewmodel.DidUiState
+import dev.tohure.didblockchainlessdemo.ui.viewmodel.DidViewModel
+
+@Composable
+fun DidScreen(
+    viewModel: DidViewModel = viewModel(),
+    onBack: () -> Unit,
+) {
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+
+    DidContent(
+        state = state,
+        onBack = onBack,
+        onGenerateKeys = viewModel::generateDIDKeys,
+        onDeleteKeys = viewModel::deleteDIDKeys,
+        onRequestCredential = { viewModel.requestCredentialWithNonce() },
+        onClearProofJwt = viewModel::clearProofJwt,
+        onClearMetadata = viewModel::clearDecryptedMetadata,
+        onVerifyVP = { viewModel.verifyVP() }
+    )
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DidScreen(
-    vm: CredentialViewModel,
+fun DidContent(
+    state: DidUiState,
     onBack: () -> Unit,
+    onGenerateKeys: () -> Unit,
+    onDeleteKeys: () -> Unit,
+    onRequestCredential: () -> Unit,
+    onClearProofJwt: () -> Unit,
+    onClearMetadata: () -> Unit,
+    onVerifyVP: () -> Unit
 ) {
-    val state by vm.uiState.collectAsStateWithLifecycle()
-
     Scaffold(
         topBar = {
             TopAppBar(
@@ -82,7 +106,7 @@ fun DidScreen(
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            if (state.isLoading || state.isFetching) {
+            if (state.isLoading) {
                 LinearProgressIndicator(
                     modifier = Modifier.fillMaxWidth(),
                     color = MaterialTheme.colorScheme.primary
@@ -92,20 +116,30 @@ fun DidScreen(
             if (state.statusMessage.isNotBlank()) {
                 StatusBar(
                     message = state.statusMessage,
-                    isLoading = state.isLoading || state.isFetching
+                    isLoading = state.isLoading
                 )
             }
 
             DidSection(
                 state = state,
-                onGenerate = vm::generateDIDKeys,
-                onDelete = vm::deleteDIDKeys
+                onGenerate = onGenerateKeys,
+                onDelete = onDeleteKeys
             )
 
             ProofJwtSection(
                 state = state,
-                onRequest = { vm.requestCredentialWithNonce() },
-                onClear = vm::clearProofJwt
+                onRequest = onRequestCredential,
+                onClear = onClearProofJwt
+            )
+
+            CredentialResultSection(
+                state = state,
+                onClear = onClearMetadata
+            )
+
+            VpSection(
+                state = state,
+                onVerify = onVerifyVP
             )
 
             Spacer(Modifier.height(24.dp))

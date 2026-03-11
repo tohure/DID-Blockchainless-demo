@@ -1,12 +1,12 @@
 package dev.tohure.didblockchainlessdemo.did
 
 import android.content.Context
-import android.os.Build
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import androidx.core.content.edit
 import dev.tohure.didblockchainlessdemo.crypto.KeystoreHelper
 import dev.tohure.didblockchainlessdemo.crypto.SecurityLevel
+import dev.tohure.didblockchainlessdemo.utils.AppLogger
 import org.bouncycastle.crypto.params.ECDomainParameters
 import org.bouncycastle.crypto.signers.ECDSASigner
 import org.bouncycastle.crypto.signers.HMacDSAKCalculator
@@ -15,7 +15,6 @@ import org.bouncycastle.jce.ECNamedCurveTable
 import org.bouncycastle.util.BigIntegers
 import java.math.BigInteger
 import java.security.KeyPairGenerator
-import java.security.KeyStore
 import java.security.SecureRandom
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
@@ -41,11 +40,12 @@ class DIDKeyManager(context: Context) {
     private val prefs = context.getSharedPreferences("did_key_store", Context.MODE_PRIVATE)
 
     companion object {
-        private const val KEYSTORE_PROVIDER = "AndroidKeyStore"
         private const val WRAP_KEY_ALIAS = "DIDWrapKey"
         private const val PREF_ENC_PRIV = "enc_private_key"
         private const val PREF_IV = "aes_gcm_iv"
         private const val PREF_PUB_HEX = "public_key_hex"
+
+        private const val KEY_SIZE_DID = 256
 
         // Prefijo multicodec secp256k1-pub (varint 0xe7 0x01)
         private val SECP256K1_MULTICODEC = byteArrayOf(0xe7.toByte(), 0x01.toByte())
@@ -55,6 +55,7 @@ class DIDKeyManager(context: Context) {
      * Genera el par secp256k1 si todavía no existe.
      * @return true si se generaron claves nuevas, false si ya existían.
      */
+    @Synchronized
     fun generateKeysIfNeeded(): Boolean {
         if (keysExist()) return false
 
@@ -93,7 +94,7 @@ class DIDKeyManager(context: Context) {
 
     fun deleteKeys() {
         prefs.edit { clear() }
-        val ks = KeyStore.getInstance(KEYSTORE_PROVIDER).apply { load(null) }
+        val ks = KeystoreHelper.keyStore
         if (ks.containsAlias(WRAP_KEY_ALIAS)) ks.deleteEntry(WRAP_KEY_ALIAS)
     }
 
@@ -121,9 +122,9 @@ class DIDKeyManager(context: Context) {
      * Internamente hashea con SHA-256 y devuelve la firma en formato R‖S (64 bytes).
      * La clave privada se limpia de RAM en el bloque finally.
      */
-    fun sign(data: ByteArray): ByteArray {
+    fun sign(data: ByteArray): Result<ByteArray> = runCatching {
         val privBytes = loadPrivateKey()
-        return try {
+        try {
             val spec = ECNamedCurveTable.getParameterSpec("secp256k1")
             val domain = ECDomainParameters(spec.curve, spec.g, spec.n, spec.h)
 
@@ -141,22 +142,18 @@ class DIDKeyManager(context: Context) {
         } finally {
             privBytes.fill(0) // limpiar de RAM
         }
+    }.onFailure { e ->
+        AppLogger.e("did-key", "Error signing data: ${e.message}", e)
     }
 
     fun getSecurityLevel(): SecurityLevel {
-        val ks = KeyStore.getInstance(KEYSTORE_PROVIDER).apply { load(null) }
-        val key = ks.getKey(WRAP_KEY_ALIAS, null) ?: return SecurityLevel.UNKNOWN
-        return KeystoreHelper.querySecurityLevel(
-            keystoreProvider = KEYSTORE_PROVIDER,
-            keyAlgorithm = KeyProperties.KEY_ALGORITHM_AES,
-            key = key,
-        )
+        return KeystoreHelper.getSymmetricKeySecurityLevel(WRAP_KEY_ALIAS, KeyProperties.KEY_ALGORITHM_AES)
     }
 
     private fun getOrCreateWrapKey(): SecretKey {
-        val ks = KeyStore.getInstance(KEYSTORE_PROVIDER).apply { load(null) }
+        val ks = KeystoreHelper.keyStore
         if (!ks.containsAlias(WRAP_KEY_ALIAS)) {
-            val kg = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, KEYSTORE_PROVIDER)
+            val kg = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, KeystoreHelper.KEYSTORE_PROVIDER)
             KeystoreHelper.withBestSecurity(strongBoxBlock = {
                 kg.init(buildWrapKeySpec(strongBox = true))
                 kg.generateKey()
@@ -169,15 +166,15 @@ class DIDKeyManager(context: Context) {
     }
 
     private fun buildWrapKeySpec(strongBox: Boolean): KeyGenParameterSpec {
-        val builder = KeyGenParameterSpec.Builder(
-            WRAP_KEY_ALIAS, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
-        ).setKeySize(256).setBlockModes(KeyProperties.BLOCK_MODE_GCM)
-            .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            builder.setIsStrongBoxBacked(strongBox)
+        return KeystoreHelper.buildKeyGenSpec(
+            alias = WRAP_KEY_ALIAS,
+            purposes = KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT,
+            isStrongBox = strongBox
+        ) {
+            setKeySize(KEY_SIZE_DID)
+            setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+            setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
         }
-        return builder.build()
     }
 
     private fun loadPrivateKey(): ByteArray {

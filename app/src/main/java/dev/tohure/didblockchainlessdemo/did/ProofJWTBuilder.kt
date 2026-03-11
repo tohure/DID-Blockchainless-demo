@@ -1,7 +1,6 @@
 package dev.tohure.didblockchainlessdemo.did
 
-import android.util.Base64
-import kotlinx.serialization.json.Json
+import dev.tohure.didblockchainlessdemo.utils.toBase64Url
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import java.time.Instant
@@ -25,7 +24,7 @@ class ProofJWTBuilder(private val didKeyManager: DIDKeyManager) {
             put("iss", did)
             put("aud", issuerUrl)
             put("iat", now)
-            put("exp", now + 300)
+            put("exp", now + 700)
             put("nonce", nonce)
             put("credential_type", credentialType)
             put("subject_claims", buildJsonObject {
@@ -33,16 +32,13 @@ class ProofJWTBuilder(private val didKeyManager: DIDKeyManager) {
             })
         }
 
-        val headerB64 = base64url(Json.encodeToString(header).toByteArray())
-        val payloadB64 = base64url(Json.encodeToString(payload).toByteArray())
+        val headerB64 = header.toString().encodeToByteArray().toBase64Url()
+        val payloadB64 = payload.toString().encodeToByteArray().toBase64Url()
         val signingInput = "$headerB64.$payloadB64"
 
-        val signature = didKeyManager.sign(signingInput.toByteArray(Charsets.UTF_8))
-        val sigB64 = base64url(signature)
+        val signature = didKeyManager.sign(signingInput.encodeToByteArray()).getOrThrow()
+        val sigB64 = signature.toBase64Url()
 
         return "$signingInput.$sigB64"
     }
-
-    private fun base64url(data: ByteArray): String =
-        Base64.encodeToString(data, Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING)
 }

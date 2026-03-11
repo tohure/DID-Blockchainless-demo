@@ -17,11 +17,11 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.tohure.didblockchainlessdemo.R
-import dev.tohure.didblockchainlessdemo.ui.viewmodel.CredentialUiState
+import dev.tohure.didblockchainlessdemo.ui.viewmodel.RsaUiState
 
 @Composable
 fun CredentialSection(
-    state: CredentialUiState,
+    state: RsaUiState,
     onUpdateJson: (String) -> Unit,
     onFetchAndEncrypt: () -> Unit,
     onEncrypt: () -> Unit,
@@ -46,13 +46,13 @@ fun CredentialSection(
         )
         Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            /*ActionButton(
+            ActionButton(
                 text = "Descargar y cifrar",
                 icon = R.drawable.download,
-                enabled = !state.isLoading && !state.isFetching && state.rsaKeyExists,
+                enabled = !state.isLoading && state.rsaKeyExists,
                 modifier = Modifier.weight(1f),
                 onClick = onFetchAndEncrypt
-            )*/
+            )
             ActionButton(
                 text = "Cifrar y guardar",
                 icon = R.drawable.lock,
