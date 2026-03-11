@@ -63,22 +63,23 @@ internal object KeystoreHelper {
         if (CryptoConfig.USE_BIOMETRICS) {
             builder.setUserAuthenticationRequired(true)
 
-            // API 30+ (Android 11): Configuración explícita de autenticación fuerte
+            // API 30+ (Android 11): Restringe a huella digital fuerte (clase 3).
+            // No acepta PIN, patrón, contraseña ni reconocimiento facial de clase 2.
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 AppLogger.d(TAG, "Aplicando setUserAuthenticationParameters (API 30+)")
 
                 builder.setUserAuthenticationParameters(
-                    10, // Duración
+                    10, // Duración en segundos tras autenticación exitosa
                     KeyProperties.AUTH_BIOMETRIC_STRONG
                 )
             } else {
-                // API < 30: Configuración legacy
+                // API < 30: Legacy — biométrico fuerte por defecto en dispositivos bien configurados
                 AppLogger.d(TAG, "Aplicando setUserAuthenticationRequired (API < 30)")
                 @Suppress("DEPRECATION")
                 builder.setUserAuthenticationValidityDurationSeconds(10)
             }
-            
-            // Invalida la clave si se añade una nueva huella/rostro
+
+            // Invalida la clave si se añade o elimina una huella del dispositivo
             builder.setInvalidatedByBiometricEnrollment(true)
         }
 

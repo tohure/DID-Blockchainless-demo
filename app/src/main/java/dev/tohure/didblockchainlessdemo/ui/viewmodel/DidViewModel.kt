@@ -3,7 +3,6 @@ package dev.tohure.didblockchainlessdemo.ui.viewmodel
 import android.app.Application
 import android.security.keystore.KeyPermanentlyInvalidatedException
 import android.security.keystore.UserNotAuthenticatedException
-import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import dev.tohure.didblockchainlessdemo.BuildConfig
 import dev.tohure.didblockchainlessdemo.crypto.CryptoManager
@@ -22,7 +21,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 
-class DidViewModel(application: Application) : AndroidViewModel(application) {
+class DidViewModel(application: Application) : BiometricAwareViewModel<DidUiState>(application) {
 
     private val didKeyManager = DIDKeyManager(application)
     private val repository = CredentialRepository()
@@ -32,10 +31,13 @@ class DidViewModel(application: Application) : AndroidViewModel(application) {
     private val crypto = CryptoManager()
     private val store = CredentialStore(application)
 
-    private val _uiState = MutableStateFlow(DidUiState())
+    override val vmTag = "did-vm"
+    override val _uiState = MutableStateFlow(DidUiState())
     val uiState: StateFlow<DidUiState> = _uiState.asStateFlow()
 
-    private var pendingAction: (suspend () -> Unit)? = null
+    override fun DidUiState.withLoading(loading: Boolean) = copy(isLoading = loading)
+    override fun DidUiState.withBiometricPrompt(show: Boolean) = copy(showBiometricPrompt = show)
+    override fun DidUiState.withStatus(message: String) = copy(statusMessage = message)
 
     init {
         refreshKeyStatus()
@@ -87,7 +89,7 @@ class DidViewModel(application: Application) : AndroidViewModel(application) {
         ),
     ) {
         launch {
-            _uiState.update { it.copy(isLoading = true, statusMessage = "Iniciando proceso...") }
+            _uiState.update { it.copy(statusMessage = "Iniciando proceso...") }
 
             runCatching {
                 check(didKeyManager.keysExist()) { "Primero genera las claves DID" }
@@ -102,11 +104,7 @@ class DidViewModel(application: Application) : AndroidViewModel(application) {
                 val nonce = repository.fetchNonce(holderDid = did).getOrThrow()
 
                 val proofJwt = proofBuilder.build(issuerUrl, nonce, credentialType, subjectClaims)
-                _uiState.update {
-                    it.copy(
-                        lastProofJwt = proofJwt, statusMessage = "Enviando Proof JWT..."
-                    )
-                }
+                _uiState.update { it.copy(lastProofJwt = proofJwt, statusMessage = "Enviando Proof JWT...") }
 
                 val credentialVC = repository.registerProof(did, proofJwt).getOrThrow()
 
@@ -124,7 +122,6 @@ class DidViewModel(application: Application) : AndroidViewModel(application) {
             }.onSuccess { (proofJwt, metadataJson, payload) ->
                 _uiState.update {
                     it.copy(
-                        isLoading = false,
                         lastProofJwt = proofJwt,
                         decryptedMetadata = metadataJson,
                         encryptedCredential = payload,
@@ -132,23 +129,18 @@ class DidViewModel(application: Application) : AndroidViewModel(application) {
                     )
                 }
             }.onFailure { e ->
-                AppLogger.e("did-vm", "Error en requestCredentialWithNonce: ${e.message}", e)
+                AppLogger.e(vmTag, "Error en requestCredentialWithNonce: ${e.message}", e)
                 if (e !is UserNotAuthenticatedException && e !is KeyPermanentlyInvalidatedException) {
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            statusMessage = "Error: ${e.message ?: "Desconocido"}"
-                        )
-                    }
+                    _uiState.update { it.withStatus("Error: ${e.message ?: "Desconocido"}") }
                 } else {
-                    throw e // Re-lanzar para que launch lo capture
+                    throw e // Re-lanzar para que el launch base lo capture
                 }
             }
         }
     }
 
     fun verifyVP() = launch {
-        _uiState.update { it.copy(isLoading = true, statusMessage = "Verificando VP...") }
+        _uiState.update { it.copy(statusMessage = "Verificando VP...") }
 
         runCatching {
             check(crypto.keyPairExists()) { "No hay claves RSA" }
@@ -156,59 +148,28 @@ class DidViewModel(application: Application) : AndroidViewModel(application) {
             val credentialJson = crypto.decrypt(payload)
 
             val vpJwt = vpBuilder.build(credentialJson, BuildConfig.BASE_URL)
-
             repository.validateCredentials(vpJwt).getOrThrow()
         }.onSuccess { response ->
-            AppLogger.d("did-vm", "No cayó en error")
             val status = if (response.valid) "VP Válida" else "VP Inválida"
-
-            val json = Json { prettyPrint = true }
-            val responseJson = json.encodeToString(response)
-
+            val responseJson = prettyJson.encodeToString(response)
             _uiState.update {
                 it.copy(
-                    isLoading = false,
                     statusMessage = "Verificación: $status. Holder: ${response.holderDid}",
                     validationResponseJson = responseJson
                 )
             }
         }.onFailure { e ->
-            AppLogger.e("did-vm", "Error en verifyVP: ${e.message}", e)
+            AppLogger.e(vmTag, "Error en verifyVP: ${e.message}", e)
             if (e !is UserNotAuthenticatedException && e !is KeyPermanentlyInvalidatedException) {
-                _uiState.update {
-                    it.copy(isLoading = false, statusMessage = "Error al verificar: ${e.message}")
-                }
+                _uiState.update { it.withStatus("Error al verificar: ${e.message}") }
             } else {
-                throw e
+                throw e // Re-lanzar para que el launch base lo capture
             }
         }
     }
 
-    fun onBiometricSuccess() {
-        _uiState.update { it.copy(showBiometricPrompt = false) }
-        pendingAction?.let { action ->
-            pendingAction = null
-            launch(action)
-        }
-    }
-
-    fun onBiometricFailure() {
-        _uiState.update {
-            it.copy(
-                showBiometricPrompt = false,
-                isLoading = false,
-                statusMessage = "Autenticación biométrica fallida"
-            )
-        }
-        pendingAction = null
-    }
-
-    fun onBiometricPromptDismissed() {
-        _uiState.update { it.copy(showBiometricPrompt = false, isLoading = false) }
-    }
-
     private fun refreshKeyStatus() {
-        launch {
+        viewModelScope.launch(Dispatchers.IO) {
             val didExists = didKeyManager.keysExist()
             val did = if (didExists) runCatching { didKeyManager.getDID() }.getOrDefault("") else ""
             val keyId =
@@ -224,44 +185,8 @@ class DidViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun launch(block: suspend () -> Unit) {
-        viewModelScope.launch(Dispatchers.IO) {
-            _uiState.update { it.copy(isLoading = true) }
-            runCatching { block() }.onFailure { e ->
-                val cause = e.cause
-                AppLogger.d("did-vm", "Exception caught in launch: $e, Cause: $cause")
-
-                if (e is KeyPermanentlyInvalidatedException || cause is KeyPermanentlyInvalidatedException) {
-                    AppLogger.e(
-                        "did-vm", "Clave invalidada permanentemente por cambios biométricos"
-                    )
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            statusMessage = "Claves invalidadas. Se detectaron cambios biométricos. Por favor, regenera las claves."
-                        )
-                    }
-                    pendingAction = null
-
-                } else if (e is UserNotAuthenticatedException || cause is UserNotAuthenticatedException) {
-                    AppLogger.w("did-vm", "Se requiere autenticación biométrica")
-                    pendingAction = block
-                    _uiState.update { it.copy(isLoading = false, showBiometricPrompt = true) }
-                } else {
-                    AppLogger.e("did-vm", "Error en launch: ${e.message}", e)
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false, statusMessage = "Error: ${e.message}"
-                        )
-                    }
-                }
-            }.onSuccess {
-                _uiState.update { it.copy(isLoading = false) }
-            }
-        }
-    }
-
     companion object {
         private const val CREDENTIAL_ID = "demo_vc"
+        private val prettyJson = Json { prettyPrint = true }
     }
 }
