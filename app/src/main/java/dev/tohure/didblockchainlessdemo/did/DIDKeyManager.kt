@@ -46,6 +46,9 @@ class DIDKeyManager(context: Context) {
         private const val PREF_PUB_HEX = "public_key_hex"
 
         private const val KEY_SIZE_DID = 256
+        private const val AES_GCM_TRANSFORMATION = "AES/GCM/NoPadding"
+
+        private const val SECP256K1_ECDSA = "secp256k1"
 
         // Prefijo multicodec secp256k1-pub (varint 0xe7 0x01)
         private val SECP256K1_MULTICODEC = byteArrayOf(0xe7.toByte(), 0x01.toByte())
@@ -59,7 +62,7 @@ class DIDKeyManager(context: Context) {
     fun generateKeysIfNeeded(): Boolean {
         if (keysExist()) return false
 
-        val spec = ECNamedCurveTable.getParameterSpec("secp256k1")
+        val spec = ECNamedCurveTable.getParameterSpec(SECP256K1_ECDSA)
         val kpg = KeyPairGenerator.getInstance("ECDSA", "BC")
         kpg.initialize(spec, SecureRandom())
         val pair = kpg.generateKeyPair()
@@ -74,7 +77,7 @@ class DIDKeyManager(context: Context) {
 
         // Cifrar clave privada con AES-GCM (la clave AES vive en Keystore)
         val wrapKey = getOrCreateWrapKey()
-        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        val cipher = Cipher.getInstance(AES_GCM_TRANSFORMATION)
         cipher.init(Cipher.ENCRYPT_MODE, wrapKey)
         val iv = cipher.iv
         val encPriv = cipher.doFinal(privBytes)
@@ -125,7 +128,7 @@ class DIDKeyManager(context: Context) {
     fun sign(data: ByteArray): Result<ByteArray> = runCatching {
         val privBytes = loadPrivateKey()
         try {
-            val spec = ECNamedCurveTable.getParameterSpec("secp256k1")
+            val spec = ECNamedCurveTable.getParameterSpec(SECP256K1_ECDSA)
             val domain = ECDomainParameters(spec.curve, spec.g, spec.n, spec.h)
 
             // RFC 6979: nonce determinístico (evita vulnerabilidades por aleatoriedad)
@@ -154,13 +157,10 @@ class DIDKeyManager(context: Context) {
         val ks = KeystoreHelper.keyStore
         if (!ks.containsAlias(WRAP_KEY_ALIAS)) {
             val kg = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, KeystoreHelper.KEYSTORE_PROVIDER)
-            KeystoreHelper.withBestSecurity(strongBoxBlock = {
-                kg.init(buildWrapKeySpec(strongBox = true))
+            KeystoreHelper.withBestSecurity { isStrongBox ->
+                kg.init(buildWrapKeySpec(strongBox = isStrongBox))
                 kg.generateKey()
-            }, fallbackBlock = {
-                kg.init(buildWrapKeySpec(strongBox = false))
-                kg.generateKey()
-            })
+            }
         }
         return ks.getKey(WRAP_KEY_ALIAS, null) as SecretKey
     }
@@ -187,7 +187,7 @@ class DIDKeyManager(context: Context) {
         val iv = Base64.decode(ivStr, Base64.NO_WRAP)
         val wrapKey = getOrCreateWrapKey()
 
-        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        val cipher = Cipher.getInstance(AES_GCM_TRANSFORMATION)
         cipher.init(Cipher.DECRYPT_MODE, wrapKey, GCMParameterSpec(128, iv))
         return cipher.doFinal(encPriv)
     }

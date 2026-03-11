@@ -1,7 +1,8 @@
 package dev.tohure.didblockchainlessdemo.ui.viewmodel
 
 import android.app.Application
-import androidx.lifecycle.AndroidViewModel
+import android.security.keystore.KeyPermanentlyInvalidatedException
+import android.security.keystore.UserNotAuthenticatedException
 import androidx.lifecycle.viewModelScope
 import dev.tohure.didblockchainlessdemo.BuildConfig
 import dev.tohure.didblockchainlessdemo.crypto.CryptoManager
@@ -20,19 +21,23 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 
-class DidViewModel(application: Application) : AndroidViewModel(application) {
+class DidViewModel(application: Application) : BiometricAwareViewModel<DidUiState>(application) {
 
     private val didKeyManager = DIDKeyManager(application)
     private val repository = CredentialRepository()
     private val proofBuilder = ProofJWTBuilder(didKeyManager)
     private val vpBuilder = VpJWTBuilder(didKeyManager)
-    
-    // Dependencias para guardar la credencial recibida
+
     private val crypto = CryptoManager()
     private val store = CredentialStore(application)
 
-    private val _uiState = MutableStateFlow(DidUiState())
+    override val vmTag = "did-vm"
+    override val _uiState = MutableStateFlow(DidUiState())
     val uiState: StateFlow<DidUiState> = _uiState.asStateFlow()
+
+    override fun DidUiState.withLoading(loading: Boolean) = copy(isLoading = loading)
+    override fun DidUiState.withBiometricPrompt(show: Boolean) = copy(showBiometricPrompt = show)
+    override fun DidUiState.withStatus(message: String) = copy(statusMessage = message)
 
     init {
         refreshKeyStatus()
@@ -80,13 +85,11 @@ class DidViewModel(application: Application) : AndroidViewModel(application) {
         issuerUrl: String = BuildConfig.BASE_URL,
         credentialType: String = "UniversityDegreeCredential",
         subjectClaims: Map<String, String> = mapOf(
-            "givenName" to "Juan",
-            "familyName" to "Perez",
-            "email" to "juan@example.com"
+            "givenName" to "Juan", "familyName" to "Perez", "email" to "juan@example.com"
         ),
     ) {
         launch {
-            _uiState.update { it.copy(isLoading = true, statusMessage = "Iniciando proceso...") }
+            _uiState.update { it.copy(statusMessage = "Iniciando proceso...") }
 
             runCatching {
                 check(didKeyManager.keysExist()) { "Primero genera las claves DID" }
@@ -119,7 +122,6 @@ class DidViewModel(application: Application) : AndroidViewModel(application) {
             }.onSuccess { (proofJwt, metadataJson, payload) ->
                 _uiState.update {
                     it.copy(
-                        isLoading = false,
                         lastProofJwt = proofJwt,
                         decryptedMetadata = metadataJson,
                         encryptedCredential = payload,
@@ -127,16 +129,18 @@ class DidViewModel(application: Application) : AndroidViewModel(application) {
                     )
                 }
             }.onFailure { e ->
-                AppLogger.e("did-vm", "Error en requestCredentialWithNonce: ${e.message}", e)
-                _uiState.update {
-                    it.copy(isLoading = false, statusMessage = "Error: ${e.message ?: "Desconocido"}")
+                AppLogger.e(vmTag, "Error en requestCredentialWithNonce: ${e.message}", e)
+                if (e !is UserNotAuthenticatedException && e !is KeyPermanentlyInvalidatedException) {
+                    _uiState.update { it.withStatus("Error: ${e.message ?: "Desconocido"}") }
+                } else {
+                    throw e // Re-lanzar para que el launch base lo capture
                 }
             }
         }
     }
 
     fun verifyVP() = launch {
-        _uiState.update { it.copy(isLoading = true, statusMessage = "Verificando VP...") }
+        _uiState.update { it.copy(statusMessage = "Verificando VP...") }
 
         runCatching {
             check(crypto.keyPairExists()) { "No hay claves RSA" }
@@ -144,62 +148,45 @@ class DidViewModel(application: Application) : AndroidViewModel(application) {
             val credentialJson = crypto.decrypt(payload)
 
             val vpJwt = vpBuilder.build(credentialJson, BuildConfig.BASE_URL)
-            
             repository.validateCredentials(vpJwt).getOrThrow()
         }.onSuccess { response ->
             val status = if (response.valid) "VP Válida" else "VP Inválida"
-            
-            val json = Json { prettyPrint = true }
-            val responseJson = json.encodeToString(response)
-            
+            val responseJson = prettyJson.encodeToString(response)
             _uiState.update {
                 it.copy(
-                    isLoading = false,
                     statusMessage = "Verificación: $status. Holder: ${response.holderDid}",
                     validationResponseJson = responseJson
                 )
             }
         }.onFailure { e ->
-            AppLogger.e("did-vm", "Error en validatePresentation: ${e.message}", e)
-            _uiState.update {
-                it.copy(isLoading = false, statusMessage = "Error al verificar: ${e.message}")
+            AppLogger.e(vmTag, "Error en verifyVP: ${e.message}", e)
+            if (e !is UserNotAuthenticatedException && e !is KeyPermanentlyInvalidatedException) {
+                _uiState.update { it.withStatus("Error al verificar: ${e.message}") }
+            } else {
+                throw e // Re-lanzar para que el launch base lo capture
             }
         }
     }
 
     private fun refreshKeyStatus() {
-        launch {
+        viewModelScope.launch(Dispatchers.IO) {
             val didExists = didKeyManager.keysExist()
             val did = if (didExists) runCatching { didKeyManager.getDID() }.getOrDefault("") else ""
-            val keyId = if (didExists) runCatching { didKeyManager.getKeyId() }.getOrDefault("") else ""
-            val didLevel = if (didExists) didKeyManager.getSecurityLevel() else SecurityLevel.UNKNOWN
+            val keyId =
+                if (didExists) runCatching { didKeyManager.getKeyId() }.getOrDefault("") else ""
+            val didLevel =
+                if (didExists) didKeyManager.getSecurityLevel() else SecurityLevel.UNKNOWN
 
             _uiState.update {
                 it.copy(
-                    didKeysExist = didExists,
-                    did = did,
-                    keyId = keyId,
-                    didSecurityLevel = didLevel
+                    didKeysExist = didExists, did = did, keyId = keyId, didSecurityLevel = didLevel
                 )
             }
         }
     }
 
-    private fun launch(block: suspend () -> Unit) {
-        viewModelScope.launch(Dispatchers.IO) {
-            _uiState.update { it.copy(isLoading = true) }
-            runCatching { block() }
-                .onFailure { e ->
-                    AppLogger.e("did-vm", "Error en launch: ${e.message}", e)
-                    _uiState.update { it.copy(isLoading = false, statusMessage = "Error: ${e.message}") }
-                }
-                .onSuccess {
-                    _uiState.update { it.copy(isLoading = false) }
-                }
-        }
-    }
-
     companion object {
         private const val CREDENTIAL_ID = "demo_vc"
+        private val prettyJson = Json { prettyPrint = true }
     }
 }

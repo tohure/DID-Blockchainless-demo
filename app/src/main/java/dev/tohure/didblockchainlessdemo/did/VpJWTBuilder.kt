@@ -1,6 +1,5 @@
 package dev.tohure.didblockchainlessdemo.did
 
-import dev.tohure.didblockchainlessdemo.utils.toBase64Url
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
@@ -30,8 +29,8 @@ class VpJWTBuilder(private val didKeyManager: DIDKeyManager) {
         val payload = buildJsonObject {
             put("iss", didKeyManager.getDID())
             put("aud", audience)
-            put("iat", now + 700)
-            put("exp", now + 700)
+            put("iat", now) // momento de emisión (RFC 7519)
+            put("exp", now + JWT_EXPIRY_SECONDS)
             put("vp", buildJsonObject {
                 putJsonArray("@context") { add("https://www.w3.org/2018/credentials/v1") }
                 putJsonArray("type") { add("VerifiablePresentation") }
@@ -41,13 +40,6 @@ class VpJWTBuilder(private val didKeyManager: DIDKeyManager) {
             })
         }
 
-        val headerB64 = header.toString().encodeToByteArray().toBase64Url()
-        val payloadB64 = payload.toString().encodeToByteArray().toBase64Url()
-        val signingInput = "$headerB64.$payloadB64"
-        
-        val signature = didKeyManager.sign(signingInput.encodeToByteArray()).getOrThrow()
-        val signatureB64 = signature.toBase64Url()
-
-        return "$headerB64.$payloadB64.$signatureB64"
+        return buildSignedJwt(header, payload, didKeyManager)
     }
 }

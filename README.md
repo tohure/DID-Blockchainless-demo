@@ -1,6 +1,6 @@
 # DID Blockchainless Demo 🪪
 
-Demo Android que implementa **Decentralized Identifiers (did:key)** sin blockchain, combinado con almacenamiento cifrado de **Verifiable Credentials** usando el Android Keystore y validación extra de StrongBox/TEE.
+Demo Android que implementa **Decentralized Identifiers (did:key)** sin blockchain, combinado con almacenamiento cifrado de **Verifiable Credentials** usando el Android Keystore con respaldo StrongBox/TEE y autenticación por **huella digital fuerte**.
 
 ---
 
@@ -29,7 +29,7 @@ Demo Android que implementa **Decentralized Identifiers (did:key)** sin blockcha
 
 ## Configuración
 
-### 1. Añade `BASE_URL` en `local.properties` (raíz del proyecto)
+### Añade `BASE_URL` en `local.properties` (raíz del proyecto)
 
 ```properties
 BASE_URL=https://tu-backend.com/
@@ -37,35 +37,35 @@ BASE_URL=https://tu-backend.com/
 
 > Si esta variable no está definida, el build falla en tiempo de compilación con un error descriptivo.
 
-### 2. Compila y ejecuta
-
-```bash
-./gradlew assembleDebug
-```
-
 ---
 
 ## Flujo principal
 
 ```mermaid
 graph TD
-    A[Inicio App] --> B{Claves DID existen?}
-    B -- No --> C["Generar par secp256k1"]
-    B -- Sí --> D[Pantalla DID]
+    A[Inicio App] --> B{¿Claves RSA/AES existen?}
+    B --> |Sí| C{¿Claves DID existen?}
+    B ---->|No| D["Pantalla RSA/AES"]
+    D --> E@{ shape: subproc, label: "Generar par RSA-2048/AES-256" }
+    E --> B
     
-    D --> E[Registrar DID]
-    E --> F[Solicitar Nonce]
-    F --> G[Generar Proof JWT]
-    G --> H["Enviar Proof (registerProof)"]
-    H --> I["Recibir Credencial (VC JWT)"]
-    I --> J["Cifrar y Guardar (RSA+AES)"]
-    J --> K["Generar VP JWT"]
-    K --> L["Validar VP en Backend"]
+    C --> |Sí| F[Pantalla DID]
+    C --> |No| G@{shape: subproc, label: "Generar en el widget primero"}
+    G --> |Reintentar| C
+    
+    F --> H[Registrar DID]
+    H --> I[Solicitar Nonce]
+    I --> J[Generar Proof JWT]
+    J --> K["Enviar Proof (registerProof)"]
+    K --> L["Recibir Credencial (VC JWT)"]
+    L --> M["Cifrar y Guardar (RSA+AES)"]
+    M --> N["Generar VP JWT"]
+    N --> O["Validar VP en Backend"]
 ```
 
 ### Detalle del flujo DID
 
-1.  **Generar DID**: Se crea un par de claves `secp256k1`. La privada se cifra con AES-GCM (clave en Keystore).
+1.  **Generar DID**: Se crea un par de claves `secp256k1`. La privada se cifra con AES-GCM (clave en Keystore) y se limpia de RAM inmediatamente.
 2.  **Registrar DID**: Se envía el DID y el email al backend (`/dids/register`).
 3.  **Solicitar Nonce**: Se pide un desafío criptográfico (`/credentials/nonce`).
 4.  **Proof JWT**: Se firma el nonce con la clave privada `secp256k1` (algoritmo ES256K).
@@ -82,15 +82,16 @@ app/src/main/java/dev/tohure/didblockchainlessdemo/
 ├── SecureCredentialsApp.kt          # Application: registra BouncyCastle al inicio
 │
 ├── crypto/
+│   ├── CryptoConfig.kt              # Interruptor: USE_BIOMETRICS (huella fuerte)
 │   ├── CryptoManager.kt             # RSA-2048 + AES-256-GCM para cifrado de VCs
 │   ├── KeystoreHelper.kt            # Lógica compartida: StrongBox/TEE y niveles de seguridad
 │   └── SecurityLevel.kt             # Enum: STRONGBOX / TEE / SOFTWARE / UNKNOWN
 │
 ├── did/
 │   ├── DIDKeyManager.kt             # Genera secp256k1, deriva DID, firma ES256K
+│   ├── JwtSigner.kt                 # Firma JWT compartida (ProofJWT + VpJWT)
 │   ├── ProofJWTBuilder.kt           # Construye el Proof JWT (solicitud de credencial)
-│   ├── VpJWTBuilder.kt              # Construye el VP JWT (presentación de credencial)
-│   └── JwtExtensions.kt             # Utilidades compartidas (Base64Url, etc.)
+│   └── VpJWTBuilder.kt              # Construye el VP JWT (presentación de credencial)
 │
 ├── data/
 │   ├── model/                       # Modelos de datos (Request/Response)
@@ -103,13 +104,16 @@ app/src/main/java/dev/tohure/didblockchainlessdemo/
 │
 ├── utils/
 │   ├── AppLogger.kt                 # Logging centralizado (tags: tohure-*)
-│   └── ValidationUtils.kt           # Validaciones de JSON y JWT
+│   ├── JwtExtensions.kt             # ByteArray.toBase64Url() — encoding estándar JWT
+│   └── ValidationUtils.kt           # Validaciones de JSON
 │
 └── ui/
     ├── navigation/AppNavigation.kt  # NavHost: HOME → DID → RSA
     ├── screens/                     # Pantallas (HomeScreen, DidScreen, RsaScreen)
     ├── components/                  # Composables reutilizables (StatusBar, Sections, Tabs)
+    │   └── BiometricPromptHandler.kt # Prompt biométrico: huella fuerte, sin PIN
     ├── viewmodel/
+    │   ├── BiometricAwareViewModel.kt # Base: launch() + callbacks biométricos centralizados
     │   ├── DidViewModel.kt          # Lógica de negocio DID (Generación, Proof, VP)
     │   ├── RsaViewModel.kt          # Lógica RSA y Cifrado
     │   ├── DidUiState.kt            # Estado inmutable de la pantalla DID
@@ -118,9 +122,47 @@ app/src/main/java/dev/tohure/didblockchainlessdemo/
 
 ---
 
+## Biometría — Huella Digital Fuerte
+
+La app protege las claves criptográficas con **huella digital (clase 3 / `BIOMETRIC_STRONG`)**.
+
+### Flujo de autenticación
+
+```
+Operación con clave → UserNotAuthenticatedException
+    → Prompt de huella (BiometricPromptHandler)
+        ├── Éxito → Operación se re-ejecuta automáticamente
+        ├── Cancelar → Operación cancelada, estado limpio
+        └── Error → Mensaje de error en pantalla
+```
+
+### Puntos clave de seguridad
+
+| Aspecto                           | Comportamiento                                                        |
+|-----------------------------------|-----------------------------------------------------------------------|
+| **Autenticador aceptado**         | Solo huella fuerte (BIOMETRIC_STRONG / clase 3)                       |
+| **Fallback a PIN/patrón**         | ❌ No. `setAllowedAuthenticators(BIOMETRIC_STRONG)` + botón "Cancelar" |
+| **Fallback a face unlock**        | ❌ No. El reconocimiento facial de clase 2 no es aceptado              |
+| **Validez tras autenticación**    | 10 segundos (configurable en `KeystoreHelper`)                        |
+| **Invalidación por nueva huella** | ✅ `setInvalidatedByBiometricEnrollment(true)`                         |
+| **Clave robada sin huella**       | Inutilizable — el Keystore la bloquea a nivel de hardware             |
+
+### Configuración
+
+En `CryptoConfig.kt`:
+```kotlin
+const val USE_BIOMETRICS = true  // false = sin restricción biométrica (solo para tests)
+```
+
+> [!IMPORTANT]
+> Si se añade o elimina una huella del sistema, las claves son invalidadas automáticamente.
+> El usuario deberá regenerar sus claves DID y RSA en la app.
+
+---
+
 ## Logging y Depuración
 
-La aplicación cuenta con un sistema de logging centralizado (`AppLogger`) que permite filtrar fácilmente los eventos y errores en Logcat.
+La aplicación cuenta con un logging centralizado (`AppLogger`) que solo activa logs en builds `DEBUG`.
 
 **Tags principales:**
 - `tohure-did-vm`: Errores en la lógica de vista DID.
@@ -139,6 +181,11 @@ La aplicación cuenta con un sistema de logging centralizado (`AppLogger`) que p
 - La clave privada **nunca sale del dispositivo en texto plano**.
 - Se cifra con `AES-256-GCM` usando una `SecretKey` del Android Keystore como wrap key.
 - Se borra de RAM con `fill(0)` inmediatamente después de usarse.
+
+> [!CAUTION]
+> `KeystoreHelper.withBestSecurity()` hace fallback a TEE si StrongBox no está disponible.
+> En producción se recomienda **forzar StrongBox** y rechazar la instalación en dispositivos que no lo soporten,
+> ya que TEE comparte recursos con el sistema operativo y ofrece menor aislamiento.
 
 ### Cifrado de VCs (RSA-2048)
 

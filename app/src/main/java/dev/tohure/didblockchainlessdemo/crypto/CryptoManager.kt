@@ -53,18 +53,11 @@ class CryptoManager {
     @Synchronized
     fun generateKeyPairIfNeeded(): Boolean {
         if (keyPairExists()) return false
-        KeystoreHelper.withBestSecurity(
-            strongBoxBlock = {
-                val kpg = KeyPairGenerator.getInstance(RSA_ALGORITHM, KeystoreHelper.KEYSTORE_PROVIDER)
-                kpg.initialize(buildKeySpec(strongBox = true))
-                kpg.generateKeyPair()
-            },
-            fallbackBlock = {
-                val kpg = KeyPairGenerator.getInstance(RSA_ALGORITHM, KeystoreHelper.KEYSTORE_PROVIDER)
-                kpg.initialize(buildKeySpec(strongBox = false))
-                kpg.generateKeyPair()
-            }
-        )
+        KeystoreHelper.withBestSecurity { isStrongBox ->
+            val kpg = KeyPairGenerator.getInstance(RSA_ALGORITHM, KeystoreHelper.KEYSTORE_PROVIDER)
+            kpg.initialize(buildKeySpec(strongBox = isStrongBox))
+            kpg.generateKeyPair()
+        }
         return true
     }
 
