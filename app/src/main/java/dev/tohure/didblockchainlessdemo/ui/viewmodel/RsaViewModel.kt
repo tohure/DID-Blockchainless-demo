@@ -7,6 +7,7 @@ import dev.tohure.didblockchainlessdemo.crypto.CryptoManager
 import dev.tohure.didblockchainlessdemo.crypto.SecurityLevel
 import dev.tohure.didblockchainlessdemo.data.repository.CredentialRepository
 import dev.tohure.didblockchainlessdemo.storage.CredentialStore
+import dev.tohure.didblockchainlessdemo.utils.AppLogger
 import dev.tohure.didblockchainlessdemo.utils.ValidationUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -142,6 +143,7 @@ class RsaViewModel(application: Application) : AndroidViewModel(application) {
             _uiState.update { it.copy(isLoading = true) }
             runCatching { block() }
                 .onFailure { e ->
+                    AppLogger.e("rsa-vm", "Error en launch: ${e.message}", e)
                     _uiState.update { it.copy(isLoading = false, statusMessage = "Error: ${e.message}") }
                 }
                 .onSuccess {

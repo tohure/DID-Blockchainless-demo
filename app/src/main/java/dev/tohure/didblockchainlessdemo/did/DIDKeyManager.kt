@@ -6,6 +6,7 @@ import android.security.keystore.KeyProperties
 import androidx.core.content.edit
 import dev.tohure.didblockchainlessdemo.crypto.KeystoreHelper
 import dev.tohure.didblockchainlessdemo.crypto.SecurityLevel
+import dev.tohure.didblockchainlessdemo.utils.AppLogger
 import org.bouncycastle.crypto.params.ECDomainParameters
 import org.bouncycastle.crypto.signers.ECDSASigner
 import org.bouncycastle.crypto.signers.HMacDSAKCalculator
@@ -141,6 +142,8 @@ class DIDKeyManager(context: Context) {
         } finally {
             privBytes.fill(0) // limpiar de RAM
         }
+    }.onFailure { e ->
+        AppLogger.e("did-key", "Error signing data: ${e.message}", e)
     }
 
     fun getSecurityLevel(): SecurityLevel {

@@ -5,7 +5,7 @@ import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyInfo
 import android.security.keystore.KeyProperties
 import android.security.keystore.StrongBoxUnavailableException
-import android.util.Log
+import dev.tohure.didblockchainlessdemo.utils.AppLogger
 import java.security.KeyStore
 import javax.crypto.SecretKeyFactory
 
@@ -19,7 +19,7 @@ import javax.crypto.SecretKeyFactory
  */
 internal object KeystoreHelper {
 
-    const val TAG = "KeystoreHelper"
+    private const val TAG = "keystore"
     const val KEYSTORE_PROVIDER = "AndroidKeyStore"
 
     val keyStore: KeyStore by lazy {
@@ -40,7 +40,7 @@ internal object KeystoreHelper {
             try {
                 return strongBoxBlock()
             } catch (e: StrongBoxUnavailableException) {
-                Log.w(TAG, "StrongBox no disponible, usando TEE: ${e.message}")
+                AppLogger.w(TAG, "StrongBox no disponible, usando TEE: ${e.message}", e)
             }
         }
         return fallbackBlock()
@@ -72,7 +72,7 @@ internal object KeystoreHelper {
             val factory = java.security.KeyFactory.getInstance(algorithm, KEYSTORE_PROVIDER)
             querySecurityLevel(key, factory)
         } catch (e: Exception) {
-            Log.e(TAG, "Error al consultar nivel de clave asimétrica: ${e.message}")
+            AppLogger.e(TAG, "Error al consultar nivel de clave asimétrica: ${e.message}", e)
             SecurityLevel.UNKNOWN
         }
     }
@@ -86,7 +86,7 @@ internal object KeystoreHelper {
             val factory = SecretKeyFactory.getInstance(algorithm, KEYSTORE_PROVIDER)
             querySecurityLevel(key, factory)
         } catch (e: Exception) {
-            Log.e(TAG, "Error al consultar nivel de clave simétrica: ${e.message}")
+            AppLogger.e(TAG, "Error al consultar nivel de clave simétrica: ${e.message}", e)
             SecurityLevel.UNKNOWN
         }
     }

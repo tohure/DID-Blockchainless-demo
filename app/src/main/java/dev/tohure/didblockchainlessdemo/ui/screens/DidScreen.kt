@@ -52,7 +52,7 @@ fun DidScreen(
         onRequestCredential = { viewModel.requestCredentialWithNonce() },
         onClearProofJwt = viewModel::clearProofJwt,
         onClearMetadata = viewModel::clearDecryptedMetadata,
-        onValidatePresentation = { viewModel.validateVP() }
+        onVerifyVP = { viewModel.verifyVP() }
     )
 }
 
@@ -66,7 +66,7 @@ fun DidContent(
     onRequestCredential: () -> Unit,
     onClearProofJwt: () -> Unit,
     onClearMetadata: () -> Unit,
-    onValidatePresentation: () -> Unit
+    onVerifyVP: () -> Unit
 ) {
     Scaffold(
         topBar = {
@@ -139,7 +139,7 @@ fun DidContent(
 
             VpSection(
                 state = state,
-                onVerify = onValidatePresentation
+                onVerify = onVerifyVP
             )
 
             Spacer(Modifier.height(24.dp))

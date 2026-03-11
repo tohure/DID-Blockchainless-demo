@@ -11,6 +11,7 @@ import dev.tohure.didblockchainlessdemo.did.DIDKeyManager
 import dev.tohure.didblockchainlessdemo.did.ProofJWTBuilder
 import dev.tohure.didblockchainlessdemo.did.VpJWTBuilder
 import dev.tohure.didblockchainlessdemo.storage.CredentialStore
+import dev.tohure.didblockchainlessdemo.utils.AppLogger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -126,6 +127,7 @@ class DidViewModel(application: Application) : AndroidViewModel(application) {
                     )
                 }
             }.onFailure { e ->
+                AppLogger.e("did-vm", "Error en requestCredentialWithNonce: ${e.message}", e)
                 _uiState.update {
                     it.copy(isLoading = false, statusMessage = "Error: ${e.message ?: "Desconocido"}")
                 }
@@ -133,7 +135,7 @@ class DidViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun validateVP() = launch {
+    fun verifyVP() = launch {
         _uiState.update { it.copy(isLoading = true, statusMessage = "Verificando VP...") }
 
         runCatching {
@@ -158,6 +160,7 @@ class DidViewModel(application: Application) : AndroidViewModel(application) {
                 )
             }
         }.onFailure { e ->
+            AppLogger.e("did-vm", "Error en validatePresentation: ${e.message}", e)
             _uiState.update {
                 it.copy(isLoading = false, statusMessage = "Error al verificar: ${e.message}")
             }
@@ -187,6 +190,7 @@ class DidViewModel(application: Application) : AndroidViewModel(application) {
             _uiState.update { it.copy(isLoading = true) }
             runCatching { block() }
                 .onFailure { e ->
+                    AppLogger.e("did-vm", "Error en launch: ${e.message}", e)
                     _uiState.update { it.copy(isLoading = false, statusMessage = "Error: ${e.message}") }
                 }
                 .onSuccess {

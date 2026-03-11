@@ -3,7 +3,6 @@ package dev.tohure.didblockchainlessdemo.ui.components
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
-import android.util.Log
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -33,8 +32,8 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.tohure.didblockchainlessdemo.R
-import dev.tohure.didblockchainlessdemo.crypto.KeystoreHelper.TAG
 import dev.tohure.didblockchainlessdemo.ui.viewmodel.DidUiState
+import dev.tohure.didblockchainlessdemo.utils.AppLogger
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -52,11 +51,11 @@ fun CredentialResultSection(
             val prettyJson = try {
                 JSONArray(state.decryptedMetadata).toString(4)
             } catch (e: Exception) {
-                Log.e(TAG, "CredentialResultSection: $e")
+                AppLogger.e("credential-ui", "CredentialResultSection: $e")
                 try {
                     JSONObject(state.decryptedMetadata).toString(4)
                 } catch (e2: Exception) {
-                    Log.e(TAG, "CredentialResultSection: $e2")
+                    AppLogger.e("credential-ui", "CredentialResultSection: $e2")
                     state.decryptedMetadata // Si falla, mostrar texto original
                 }
             }

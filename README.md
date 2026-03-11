@@ -6,10 +6,10 @@ Demo Android que implementa **Decentralized Identifiers (did:key)** sin blockcha
 
 ## ¿Qué hace la app?
 
-| Módulo            | Qué hace                                                                                                |
-|-------------------|---------------------------------------------------------------------------------------------------------|
-| **Identidad DID** | Genera claves `secp256k1`, registra el DID, solicita un nonce y firma un Proof JWT para obtener una VC. |
-| **RSA Cifrado**   | Cifra credenciales (JSON o JWT) con `AES-256-GCM + RSA-2048 OAEP` usando el Android Keystore.           |
+| Módulo            | Qué hace                                                                                                          |
+|-------------------|-------------------------------------------------------------------------------------------------------------------|
+| **Identidad DID** | Genera claves `secp256k1`, registra el DID, solicita una VC mediante Proof JWT y **valida la presentación (VP)**. |
+| **RSA Cifrado**   | Cifra credenciales (JSON o JWT) con `AES-256-GCM + RSA-2048 OAEP` usando el Android Keystore.                     |
 
 ---
 
@@ -57,9 +57,10 @@ graph TD
     E --> F[Solicitar Nonce]
     F --> G[Generar Proof JWT]
     G --> H["Enviar Proof (registerProof)"]
-    H --> I["Recibir Credencial (JWT)"]
+    H --> I["Recibir Credencial (VC JWT)"]
     I --> J["Cifrar y Guardar (RSA+AES)"]
-    J --> K[Mostrar Payload Descifrado]
+    J --> K["Generar VP JWT"]
+    K --> L["Validar VP en Backend"]
 ```
 
 ### Detalle del flujo DID
@@ -69,14 +70,15 @@ graph TD
 3.  **Solicitar Nonce**: Se pide un desafío criptográfico (`/credentials/nonce`).
 4.  **Proof JWT**: Se firma el nonce con la clave privada `secp256k1` (algoritmo ES256K).
 5.  **Obtener Credencial**: Se envía el JWT (`/credentials/issue`) y se recibe una Verifiable Credential (VC).
-6.  **Almacenamiento Seguro**: La VC se cifra automáticamente usando el módulo RSA y se guarda en `SharedPreferences`.
+6.  **Validar Presentación**: Se envuelve la VC en un **Verifiable Presentation (VP)** JWT y se envía al backend (`/credentials/verify`) para comprobar su validez.
+7.  **Almacenamiento Seguro**: La VC se cifra automáticamente usando el módulo RSA y se guarda en `SharedPreferences`.
 
 ---
 
 ## Estructura del proyecto
 
 ```
-app/src/main/java/.../
+app/src/main/java/dev/tohure/didblockchainlessdemo/
 ├── SecureCredentialsApp.kt          # Application: registra BouncyCastle al inicio
 │
 ├── crypto/
@@ -86,7 +88,9 @@ app/src/main/java/.../
 │
 ├── did/
 │   ├── DIDKeyManager.kt             # Genera secp256k1, deriva DID, firma ES256K
-│   └── ProofJWTBuilder.kt           # Construye el JWT de prueba (header+payload+firma)
+│   ├── ProofJWTBuilder.kt           # Construye el Proof JWT (solicitud de credencial)
+│   ├── VpJWTBuilder.kt              # Construye el VP JWT (presentación de credencial)
+│   └── JwtExtensions.kt             # Utilidades compartidas (Base64Url, etc.)
 │
 ├── data/
 │   ├── model/                       # Modelos de datos (Request/Response)
@@ -97,17 +101,33 @@ app/src/main/java/.../
 │
 ├── storage/CredentialStore.kt       # SharedPreferences cifradas: guarda el payload AES-GCM
 │
+├── utils/
+│   ├── AppLogger.kt                 # Logging centralizado (tags: tohure-*)
+│   └── ValidationUtils.kt           # Validaciones de JSON y JWT
+│
 └── ui/
     ├── navigation/AppNavigation.kt  # NavHost: HOME → DID → RSA
-    ├── screens/                     # Pantallas (Home, Did, Rsa)
+    ├── screens/                     # Pantallas (HomeScreen, DidScreen, RsaScreen)
     ├── components/                  # Composables reutilizables (StatusBar, Sections, Tabs)
     ├── viewmodel/
-    │   ├── CredentialViewModel.kt         # Estado central
-    │   ├── CredentialViewModelDid.kt      # Lógica DID
-    │   ├── CredentialViewModelRsa.kt      # Lógica RSA y Cifrado (validación inteligente)
-    │   └── CredentialViewModelNetwork.kt  # Lógica de Red (flujo completo)
-    └── CredentialUiState.kt         # Estado inmutable de la UI
+    │   ├── DidViewModel.kt          # Lógica de negocio DID (Generación, Proof, VP)
+    │   ├── RsaViewModel.kt          # Lógica RSA y Cifrado
+    │   ├── DidUiState.kt            # Estado inmutable de la pantalla DID
+    │   └── RsaUiState.kt            # Estado inmutable de la pantalla RSA
 ```
+
+---
+
+## Logging y Depuración
+
+La aplicación cuenta con un sistema de logging centralizado (`AppLogger`) que permite filtrar fácilmente los eventos y errores en Logcat.
+
+**Tags principales:**
+- `tohure-did-vm`: Errores en la lógica de vista DID.
+- `tohure-rsa-vm`: Errores en la lógica de vista RSA.
+- `tohure-repository`: Errores de red y repositorio.
+- `tohure-did-key`: Errores criptográficos en DIDKeyManager.
+- `tohure-keystore`: Errores de acceso al Android Keystore.
 
 ---
 
@@ -138,12 +158,14 @@ La `BASE_URL` se maneja vía `local.properties` para no exponerla en el reposito
 
 ## Endpoints del backend
 
-| Método | Ruta                 | Descripción                                      |
-|--------|----------------------|--------------------------------------------------|
-| `POST` | `/dids/register`     | Registra el DID y el Client ID (email)           |
-| `GET`  | `/credentials/nonce` | Obtiene un nonce vinculado al DID                |
-| `POST` | `/credentials/issue` | Envía el Proof JWT y recibe la Credencial (JWT)  |
-| `GET`  | `/credentials/{id}`  | Descarga una credencial específica (Legacy flow) |
+| Método | Ruta                  | Descripción                                       |
+|--------|-----------------------|---------------------------------------------------|
+| `POST` | `/dids/register`      | Registra el DID y el Client ID (email)            |
+| `GET`  | `/credentials/nonce`  | Obtiene un nonce vinculado al DID                 |
+| `POST` | `/credentials/issue`  | Envía el Proof JWT y recibe la Credencial (VC)    |
+| `GET`  | `/credentials`        | Obtiene metadatos de credenciales asociadas       |
+| `POST` | `/credentials/verify` | Valida un Verifiable Presentation (VP) JWT        |
+| `GET`  | `/credentials/{id}`   | Descarga una credencial específica (Legacy flow)  |
 
 ---
 
