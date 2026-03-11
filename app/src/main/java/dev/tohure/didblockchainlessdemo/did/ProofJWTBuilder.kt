@@ -7,6 +7,8 @@ import java.time.Instant
 
 class ProofJWTBuilder(private val didKeyManager: DIDKeyManager) {
 
+    private val MINUTES_EXP = 300 //5 MINUTOS
+
     fun build(
         issuerUrl: String, nonce: String, credentialType: String, subjectClaims: Map<String, String>
     ): String {
@@ -23,8 +25,8 @@ class ProofJWTBuilder(private val didKeyManager: DIDKeyManager) {
         val payload = buildJsonObject {
             put("iss", did)
             put("aud", issuerUrl)
-            put("iat", now)
-            put("exp", now + 700)
+            put("iat", now + MINUTES_EXP)
+            put("exp", now + MINUTES_EXP)
             put("nonce", nonce)
             put("credential_type", credentialType)
             put("subject_claims", buildJsonObject {

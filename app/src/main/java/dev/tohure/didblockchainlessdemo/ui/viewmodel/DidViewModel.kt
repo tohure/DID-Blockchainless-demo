@@ -34,7 +34,7 @@ class DidViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _uiState = MutableStateFlow(DidUiState())
     val uiState: StateFlow<DidUiState> = _uiState.asStateFlow()
-    
+
     private var pendingAction: (suspend () -> Unit)? = null
 
     init {
@@ -83,9 +83,7 @@ class DidViewModel(application: Application) : AndroidViewModel(application) {
         issuerUrl: String = BuildConfig.BASE_URL,
         credentialType: String = "UniversityDegreeCredential",
         subjectClaims: Map<String, String> = mapOf(
-            "givenName" to "Juan",
-            "familyName" to "Perez",
-            "email" to "juan@example.com"
+            "givenName" to "Juan", "familyName" to "Perez", "email" to "juan@example.com"
         ),
     ) {
         launch {
@@ -104,7 +102,11 @@ class DidViewModel(application: Application) : AndroidViewModel(application) {
                 val nonce = repository.fetchNonce(holderDid = did).getOrThrow()
 
                 val proofJwt = proofBuilder.build(issuerUrl, nonce, credentialType, subjectClaims)
-                _uiState.update { it.copy(lastProofJwt = proofJwt, statusMessage = "Enviando Proof JWT...") }
+                _uiState.update {
+                    it.copy(
+                        lastProofJwt = proofJwt, statusMessage = "Enviando Proof JWT..."
+                    )
+                }
 
                 val credentialVC = repository.registerProof(did, proofJwt).getOrThrow()
 
@@ -130,11 +132,13 @@ class DidViewModel(application: Application) : AndroidViewModel(application) {
                     )
                 }
             }.onFailure { e ->
-                // Si es UserNotAuthenticatedException o KeyPermanentlyInvalidatedException, se maneja en el bloque launch general
+                AppLogger.e("did-vm", "Error en requestCredentialWithNonce: ${e.message}", e)
                 if (e !is UserNotAuthenticatedException && e !is KeyPermanentlyInvalidatedException) {
-                    AppLogger.e("did-vm", "Error en requestCredentialWithNonce: ${e.message}", e)
                     _uiState.update {
-                        it.copy(isLoading = false, statusMessage = "Error: ${e.message ?: "Desconocido"}")
+                        it.copy(
+                            isLoading = false,
+                            statusMessage = "Error: ${e.message ?: "Desconocido"}"
+                        )
                     }
                 } else {
                     throw e // Re-lanzar para que launch lo capture
@@ -152,15 +156,15 @@ class DidViewModel(application: Application) : AndroidViewModel(application) {
             val credentialJson = crypto.decrypt(payload)
 
             val vpJwt = vpBuilder.build(credentialJson, BuildConfig.BASE_URL)
-            
+
             repository.validateCredentials(vpJwt).getOrThrow()
         }.onSuccess { response ->
             AppLogger.d("did-vm", "No cayó en error")
             val status = if (response.valid) "VP Válida" else "VP Inválida"
-            
+
             val json = Json { prettyPrint = true }
             val responseJson = json.encodeToString(response)
-            
+
             _uiState.update {
                 it.copy(
                     isLoading = false,
@@ -169,8 +173,8 @@ class DidViewModel(application: Application) : AndroidViewModel(application) {
                 )
             }
         }.onFailure { e ->
+            AppLogger.e("did-vm", "Error en verifyVP: ${e.message}", e)
             if (e !is UserNotAuthenticatedException && e !is KeyPermanentlyInvalidatedException) {
-                AppLogger.e("did-vm", "Error en verifyVP: ${e.message}", e)
                 _uiState.update {
                     it.copy(isLoading = false, statusMessage = "Error al verificar: ${e.message}")
                 }
@@ -189,10 +193,16 @@ class DidViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun onBiometricFailure() {
-        _uiState.update { it.copy(showBiometricPrompt = false, isLoading = false, statusMessage = "Autenticación biométrica fallida") }
+        _uiState.update {
+            it.copy(
+                showBiometricPrompt = false,
+                isLoading = false,
+                statusMessage = "Autenticación biométrica fallida"
+            )
+        }
         pendingAction = null
     }
-    
+
     fun onBiometricPromptDismissed() {
         _uiState.update { it.copy(showBiometricPrompt = false, isLoading = false) }
     }
@@ -201,15 +211,14 @@ class DidViewModel(application: Application) : AndroidViewModel(application) {
         launch {
             val didExists = didKeyManager.keysExist()
             val did = if (didExists) runCatching { didKeyManager.getDID() }.getOrDefault("") else ""
-            val keyId = if (didExists) runCatching { didKeyManager.getKeyId() }.getOrDefault("") else ""
-            val didLevel = if (didExists) didKeyManager.getSecurityLevel() else SecurityLevel.UNKNOWN
+            val keyId =
+                if (didExists) runCatching { didKeyManager.getKeyId() }.getOrDefault("") else ""
+            val didLevel =
+                if (didExists) didKeyManager.getSecurityLevel() else SecurityLevel.UNKNOWN
 
             _uiState.update {
                 it.copy(
-                    didKeysExist = didExists,
-                    did = did,
-                    keyId = keyId,
-                    didSecurityLevel = didLevel
+                    didKeysExist = didExists, did = did, keyId = keyId, didSecurityLevel = didLevel
                 )
             }
         }
@@ -218,34 +227,37 @@ class DidViewModel(application: Application) : AndroidViewModel(application) {
     private fun launch(block: suspend () -> Unit) {
         viewModelScope.launch(Dispatchers.IO) {
             _uiState.update { it.copy(isLoading = true) }
-            runCatching { block() }
-                .onFailure { e ->
-                    val cause = e.cause
-                    // LOG EXTRA PARA DEPURACIÓN
-                    AppLogger.d("did-vm", "Exception caught in launch: $e, Cause: $cause")
-                    
-                    if (e is KeyPermanentlyInvalidatedException || cause is KeyPermanentlyInvalidatedException) {
-                        AppLogger.e("did-vm", "Clave invalidada permanentemente por cambios biométricos")
-                        _uiState.update { 
-                            it.copy(
-                                isLoading = false, 
-                                statusMessage = "Claves invalidadas. Se detectaron cambios biométricos. Por favor, regenera las claves."
-                            ) 
-                        }
-                        pendingAction = null
-                        
-                    } else if (e is UserNotAuthenticatedException || cause is UserNotAuthenticatedException) {
-                        AppLogger.w("did-vm", "Se requiere autenticación biométrica")
-                        pendingAction = block
-                        _uiState.update { it.copy(isLoading = false, showBiometricPrompt = true) }
-                    } else {
-                        AppLogger.e("did-vm", "Error en launch: ${e.message}", e)
-                        _uiState.update { it.copy(isLoading = false, statusMessage = "Error: ${e.message}") }
+            runCatching { block() }.onFailure { e ->
+                val cause = e.cause
+                AppLogger.d("did-vm", "Exception caught in launch: $e, Cause: $cause")
+
+                if (e is KeyPermanentlyInvalidatedException || cause is KeyPermanentlyInvalidatedException) {
+                    AppLogger.e(
+                        "did-vm", "Clave invalidada permanentemente por cambios biométricos"
+                    )
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            statusMessage = "Claves invalidadas. Se detectaron cambios biométricos. Por favor, regenera las claves."
+                        )
+                    }
+                    pendingAction = null
+
+                } else if (e is UserNotAuthenticatedException || cause is UserNotAuthenticatedException) {
+                    AppLogger.w("did-vm", "Se requiere autenticación biométrica")
+                    pendingAction = block
+                    _uiState.update { it.copy(isLoading = false, showBiometricPrompt = true) }
+                } else {
+                    AppLogger.e("did-vm", "Error en launch: ${e.message}", e)
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false, statusMessage = "Error: ${e.message}"
+                        )
                     }
                 }
-                .onSuccess {
-                    _uiState.update { it.copy(isLoading = false) }
-                }
+            }.onSuccess {
+                _uiState.update { it.copy(isLoading = false) }
+            }
         }
     }
 

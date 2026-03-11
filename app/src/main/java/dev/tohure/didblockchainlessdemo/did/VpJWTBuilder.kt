@@ -15,6 +15,8 @@ import java.time.Instant
  */
 class VpJWTBuilder(private val didKeyManager: DIDKeyManager) {
 
+    private val MINUTES_EXP = 300 //5 MINUTOS
+
     fun build(
         verifiableCredentialJwt: String,
         audience: String
@@ -30,8 +32,8 @@ class VpJWTBuilder(private val didKeyManager: DIDKeyManager) {
         val payload = buildJsonObject {
             put("iss", didKeyManager.getDID())
             put("aud", audience)
-            put("iat", now + 700)
-            put("exp", now + 700)
+            put("iat", now + MINUTES_EXP)
+            put("exp", now + MINUTES_EXP)
             put("vp", buildJsonObject {
                 putJsonArray("@context") { add("https://www.w3.org/2018/credentials/v1") }
                 putJsonArray("type") { add("VerifiablePresentation") }

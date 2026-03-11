@@ -165,7 +165,6 @@ class RsaViewModel(application: Application) : AndroidViewModel(application) {
             runCatching { block() }
                 .onFailure { e ->
                     val cause = e.cause
-                    // LOG EXTRA PARA DEPURACIÓN
                     AppLogger.d("rsa-vm", "Exception caught in launch: $e, Cause: $cause")
                     
                     if (e is KeyPermanentlyInvalidatedException || cause is KeyPermanentlyInvalidatedException) {
