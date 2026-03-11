@@ -52,7 +52,7 @@ fun ProofJwtSection(
 ) {
     SectionCard(title = "✍️  Proof JWT (Solicitar credencial)") {
         Text(
-            text = "Solicita un nonce al backend, construye el Proof JWT firmado con la clave secp256k1 y muéstralo aquí.",
+            text = "Solicita un nonce al backend, construye el Proof JWT firmado con la clave secp256k1 y se muestra aquí.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
         )

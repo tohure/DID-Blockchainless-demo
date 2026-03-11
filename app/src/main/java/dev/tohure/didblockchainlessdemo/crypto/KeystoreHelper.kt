@@ -61,25 +61,25 @@ internal object KeystoreHelper {
         AppLogger.d(TAG, "Configurando clave $alias. USE_BIOMETRICS=${CryptoConfig.USE_BIOMETRICS}")
 
         if (CryptoConfig.USE_BIOMETRICS) {
+            builder.setUserAuthenticationRequired(true)
+
             // API 30+ (Android 11): Configuración explícita de autenticación fuerte
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 AppLogger.d(TAG, "Aplicando setUserAuthenticationParameters (API 30+)")
+
                 builder.setUserAuthenticationParameters(
-                    15, // Duración
+                    10, // Duración
                     KeyProperties.AUTH_BIOMETRIC_STRONG
                 )
             } else {
                 // API < 30: Configuración legacy
                 AppLogger.d(TAG, "Aplicando setUserAuthenticationRequired (API < 30)")
-                builder.setUserAuthenticationRequired(true)
                 @Suppress("DEPRECATION")
-                builder.setUserAuthenticationValidityDurationSeconds(15)
+                builder.setUserAuthenticationValidityDurationSeconds(10)
             }
             
             // Invalida la clave si se añade una nueva huella/rostro
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                builder.setInvalidatedByBiometricEnrollment(true)
-            }
+            builder.setInvalidatedByBiometricEnrollment(true)
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {

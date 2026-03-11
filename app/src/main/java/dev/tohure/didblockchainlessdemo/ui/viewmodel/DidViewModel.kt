@@ -20,7 +20,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
 class DidViewModel(application: Application) : AndroidViewModel(application) {
@@ -29,8 +28,7 @@ class DidViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = CredentialRepository()
     private val proofBuilder = ProofJWTBuilder(didKeyManager)
     private val vpBuilder = VpJWTBuilder(didKeyManager)
-    
-    // Dependencias para guardar la credencial recibida
+
     private val crypto = CryptoManager()
     private val store = CredentialStore(application)
 
@@ -157,6 +155,7 @@ class DidViewModel(application: Application) : AndroidViewModel(application) {
             
             repository.validateCredentials(vpJwt).getOrThrow()
         }.onSuccess { response ->
+            AppLogger.d("did-vm", "No cayó en error")
             val status = if (response.valid) "VP Válida" else "VP Inválida"
             
             val json = Json { prettyPrint = true }
