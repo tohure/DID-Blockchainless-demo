@@ -44,16 +44,16 @@ BASE_URL=https://tu-backend.com/
 ```mermaid
 graph TD
     A[Inicio App] --> B{¿Claves RSA/AES existen?}
-    B --> |Sí| C{¿Claves DID existen?}
+    B -->|Sí| C[Pantalla DID]
     B ---->|No| D["Pantalla RSA/AES"]
     D --> E@{ shape: subproc, label: "Generar par RSA-2048/AES-256" }
-    E --> B
-    
-    C --> |Sí| F[Pantalla DID]
-    C --> |No| G@{shape: subproc, label: "Generar en el widget primero"}
+    E --> |Reintentar| B
+
+    C --> F{¿Claves DID existen?}
     G --> |Reintentar| C
-    
-    F --> H[Registrar DID]
+
+    F -->|Sí| H[Registrar DID]
+    F --> |No| G@{shape: subproc, label: "Generar en el widget primero"}
     H --> I[Solicitar Nonce]
     I --> J[Generar Proof JWT]
     J --> K["Enviar Proof (registerProof)"]
